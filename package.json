@@ -1,0 +1,33 @@
+{
+  "name": "zlib.es",
+  "version": "0.0.1",
+  "description": "WIP",
+  "main": "lib/zlib.js",
+  "module": "lib/zlib.mjs",
+  "types": "tsc/zlib.d.ts",
+  "scripts": {
+    "test": "mocha ./test/index.js",
+    "build": "npm run lint && npm run build:tsc && npm run build:rollup && npm run build:uglify && npm run test",
+    "build:tsc": "tsc",
+    "build:rollup": "rollup -c",
+    "build:uglify": "uglifyjs dist/zlib.js -o dist/zlib.min.js -cm --source-map",
+    "lint": "tslint --fix './src/**/*.ts'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zprodev/zlib.es.git"
+  },
+  "author": "zprodev <zproject.develop@gmail.com> (https://github.com/zprodev)",
+  "license": "Zlib",
+  "bugs": {
+    "url": "https://github.com/zprodev/zlib.es/issues"
+  },
+  "homepage": "https://github.com/zprodev/zlib.es#readme",
+  "devDependencies": {
+    "mocha": "^5.2.0",
+    "rollup": "^0.65.2",
+    "tslint": "^5.11.0",
+    "typescript": "^3.0.3",
+    "uglify-es": "^3.3.9"
+  }
+}
