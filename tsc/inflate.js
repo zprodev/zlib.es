@@ -1,11 +1,11 @@
 import { BLOCK_MAX_BUFFER_LEN, BTYPE, CODELEN_VALUES, DISTANCE_EXTRA_BIT_BASE, DISTANCE_EXTRA_BIT_LEN, LENGTH_EXTRA_BIT_BASE, LENGTH_EXTRA_BIT_LEN, } from './const';
 import { generateHuffmanTable, makeFixedHuffmanCodelenValues } from './huffman';
-import { BitStream } from './utils/BitStream';
+import { BitReadStream } from './utils/BitReadStream';
 const FIXED_HUFFMAN_TABLE = generateHuffmanTable(makeFixedHuffmanCodelenValues());
 export function inflate(input, offset = 0) {
     let buffer = new Uint8Array(BLOCK_MAX_BUFFER_LEN);
     let bufferIndex = 0;
-    const stream = new BitStream(input, offset);
+    const stream = new BitReadStream(input, offset);
     let bFinal = 0;
     let bType = 0;
     while (bFinal !== 1) {

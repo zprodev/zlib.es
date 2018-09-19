@@ -8,7 +8,7 @@ import {
   LENGTH_EXTRA_BIT_LEN,
 } from './const';
 import {generateHuffmanTable, makeFixedHuffmanCodelenValues} from './huffman';
-import {BitStream} from './utils/BitStream';
+import {BitReadStream} from './utils/BitReadStream';
 
 const FIXED_HUFFMAN_TABLE = generateHuffmanTable( makeFixedHuffmanCodelenValues() );
 
@@ -16,7 +16,7 @@ export function inflate(input: Uint8Array, offset: number = 0) {
   let buffer = new Uint8Array(BLOCK_MAX_BUFFER_LEN);
   let bufferIndex = 0;
 
-  const stream = new BitStream(input, offset);
+  const stream = new BitReadStream(input, offset);
   let bFinal = 0;
   let bType = 0;
   while (bFinal !== 1) {
@@ -44,7 +44,7 @@ export function inflate(input: Uint8Array, offset: number = 0) {
   return buffer.subarray(0, bufferIndex);
 }
 
-function inflateUncompressedBlock(stream: BitStream, buffer: Uint8Array, bufferIndex: number) {
+function inflateUncompressedBlock(stream: BitReadStream, buffer: Uint8Array, bufferIndex: number) {
   // Discard the padding
   stream.readRange(5);
   const LEN = stream.readRange(8) | stream.readRange(8) << 8;
@@ -59,7 +59,7 @@ function inflateUncompressedBlock(stream: BitStream, buffer: Uint8Array, bufferI
   return bufferIndex;
 }
 
-function inflateFixedBlock(stream: BitStream, buffer: Uint8Array, bufferIndex: number) {
+function inflateFixedBlock(stream: BitReadStream, buffer: Uint8Array, bufferIndex: number) {
   const tables = FIXED_HUFFMAN_TABLE;
 
   const codelens = tables.keys();
@@ -129,7 +129,7 @@ function inflateFixedBlock(stream: BitStream, buffer: Uint8Array, bufferIndex: n
   return bufferIndex;
 }
 
-function inflateDynamicBlock(stream: BitStream, buffer: Uint8Array, bufferIndex: number) {
+function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8Array, bufferIndex: number) {
   const HLIT = stream.readRange(5) + 257;
   const HDIST = stream.readRange(5) + 1;
   const HCLEN = stream.readRange(4) + 4;

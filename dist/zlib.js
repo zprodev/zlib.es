@@ -1,6 +1,17 @@
 var zlibes = (function (exports) {
     'use strict';
 
+    function calcAdler32(input) {
+        let s1 = 1;
+        let s2 = 0;
+        const inputLen = input.length;
+        for (let i = 0; i < inputLen; i++) {
+            s1 = (s1 + input[i]) % 65521;
+            s2 = (s1 + s2) % 65521;
+        }
+        return (s2 << 16) + s1;
+    }
+
     const BTYPE = Object.freeze({
         UNCOMPRESSED: 0,
         FIXED: 1,
@@ -31,6 +42,88 @@ var zlibes = (function (exports) {
     const CODELEN_VALUES = [
         16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
     ];
+
+    class BitWriteStream {
+        constructor(buffer, bufferOffset = 0, bitsOffset = 0) {
+            this.nowBitsIndex = 0;
+            this.isEnd = false;
+            this.buffer = buffer;
+            this.bufferIndex = bufferOffset;
+            this.nowBits = buffer[bufferOffset];
+            this.nowBitsIndex = bitsOffset;
+        }
+        write(bit) {
+            if (this.isEnd) {
+                throw new Error('Lack of data length');
+            }
+            bit <<= this.nowBitsIndex;
+            this.nowBits += bit;
+            this.nowBitsIndex++;
+            if (this.nowBitsIndex >= 8) {
+                this.buffer[this.bufferIndex] = this.nowBits;
+                this.bufferIndex++;
+                this.nowBits = 0;
+                this.nowBitsIndex = 0;
+                if (this.buffer.length <= this.bufferIndex) {
+                    this.isEnd = true;
+                }
+            }
+        }
+        writeRange(value, length) {
+            let mask = 1;
+            let bit = 0;
+            for (let i = 0; i < length; i++) {
+                bit = (value & mask) ? 1 : 0;
+                this.write(bit);
+                mask <<= 1;
+            }
+        }
+        writeRangeCoded(value, length) {
+            let mask = 1 << (length - 1);
+            let bit = 0;
+            for (let i = 0; i < length; i++) {
+                bit = (value & mask) ? 1 : 0;
+                this.write(bit);
+                mask >>>= 1;
+            }
+        }
+    }
+
+    function deflate(input) {
+        let inputIndex = 0;
+        let stream = new BitWriteStream(new Uint8Array(BLOCK_MAX_BUFFER_LEN));
+        while (inputIndex < input.length) {
+            if (stream.buffer.length < stream.bufferIndex + BLOCK_MAX_BUFFER_LEN) {
+                const newBuffer = new Uint8Array(stream.buffer.length + BLOCK_MAX_BUFFER_LEN);
+                newBuffer.set(stream.buffer);
+                stream = new BitWriteStream(newBuffer, stream.bufferIndex, stream.nowBitsIndex);
+            }
+            if (input.length - inputIndex <= 0xffff) {
+                stream.writeRange(1, 1);
+            }
+            else {
+                stream.writeRange(0, 1);
+            }
+            stream.writeRange(0, 2);
+            inputIndex = deflateUncompressedBlock(stream, input, inputIndex);
+        }
+        const writeLen = (stream.nowBitsIndex === 0) ? stream.bufferIndex : stream.bufferIndex + 1;
+        return stream.buffer.subarray(0, writeLen);
+    }
+    function deflateUncompressedBlock(stream, input, inputIndex) {
+        stream.writeRange(0, 5);
+        const LEN = (input.length - inputIndex > 0xffff) ? 0xffff : input.length;
+        const NLEN = 0xffff - LEN;
+        stream.writeRange(LEN & 0xff, 8);
+        stream.writeRange(LEN >> 8, 8);
+        stream.writeRange(NLEN & 0xff, 8);
+        stream.writeRange(NLEN >> 8, 8);
+        for (let i = 0; i < LEN; i++) {
+            stream.writeRange(input[inputIndex], 8);
+            inputIndex++;
+        }
+        return inputIndex;
+    }
 
     function generateHuffmanTable(codelenValues) {
         const codelens = codelenValues.keys();
@@ -86,7 +179,7 @@ var zlibes = (function (exports) {
         return codelenValues;
     }
 
-    class BitStream {
+    class BitReadStream {
         constructor(buffer, offset = 0) {
             this.nowBitsIndex = 0;
             this.isEnd = false;
@@ -136,7 +229,7 @@ var zlibes = (function (exports) {
     function inflate(input, offset = 0) {
         let buffer = new Uint8Array(BLOCK_MAX_BUFFER_LEN);
         let bufferIndex = 0;
-        const stream = new BitStream(input, offset);
+        const stream = new BitReadStream(input, offset);
         let bFinal = 0;
         let bType = 0;
         while (bFinal !== 1) {
@@ -449,16 +542,42 @@ var zlibes = (function (exports) {
     }
 
     function inflate$1(input) {
-        const stream = new BitStream(input);
+        const stream = new BitReadStream(input);
         const CM = stream.readRange(4);
+        if (CM !== 8) {
+            throw new Error('Not compressed by deflate');
+        }
         const CINFO = stream.readRange(4);
         const FCHECK = stream.readRange(5);
         const FDICT = stream.readRange(1);
         const FLEVEL = stream.readRange(2);
         return inflate(input, 2);
     }
+    function deflate$1(input) {
+        const data = deflate(input);
+        const CMF = new BitWriteStream(new Uint8Array(1));
+        CMF.writeRange(8, 4);
+        CMF.writeRange(7, 4);
+        const FLG = new BitWriteStream(new Uint8Array(1));
+        FLG.writeRange(28, 5);
+        FLG.writeRange(0, 1);
+        FLG.writeRange(2, 2);
+        const ADLER32 = new BitWriteStream(new Uint8Array(4));
+        const adler32 = calcAdler32(input);
+        ADLER32.writeRange(adler32 >>> 24, 8);
+        ADLER32.writeRange((adler32 >>> 16) & 0xff, 8);
+        ADLER32.writeRange((adler32 >>> 8) & 0xff, 8);
+        ADLER32.writeRange(adler32 & 0xff, 8);
+        const output = new Uint8Array(data.length + 6);
+        output.set(CMF.buffer);
+        output.set(FLG.buffer, 1);
+        output.set(data, 2);
+        output.set(ADLER32.buffer, output.length - 4);
+        return output;
+    }
 
     exports.inflate = inflate$1;
+    exports.deflate = deflate$1;
 
     return exports;
 

@@ -28,3 +28,12 @@ describe('inflate', function() {
     );
   });
 });
+
+describe('deflate', function() {
+  it('UNCOMPRESSED', function() {
+    assert.deepEqual(
+      UNCOMPRESSED,
+      zlibes.deflate(RAW)
+    );
+  });
+});

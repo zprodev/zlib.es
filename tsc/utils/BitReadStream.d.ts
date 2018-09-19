@@ -1,4 +1,4 @@
-export declare class BitStream {
+export declare class BitReadStream {
     buffer: Uint8Array;
     bufferIndex: number;
     nowBits: number;

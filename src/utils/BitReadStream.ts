@@ -1,4 +1,4 @@
-export class BitStream {
+export class BitReadStream {
   public buffer: Uint8Array;
   public bufferIndex: number;
   public nowBits: number;

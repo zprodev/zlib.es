@@ -1,4 +1,4 @@
-export class BitStream {
+export class BitReadStream {
     constructor(buffer, offset = 0) {
         this.nowBitsIndex = 0;
         this.isEnd = false;

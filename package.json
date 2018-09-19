@@ -8,6 +8,7 @@
   "scripts": {
     "test": "mocha ./test/index.js",
     "build": "npm run lint && npm run build:tsc && npm run build:rollup && npm run build:uglify && npm run test",
+    "debug": "npm run build:tsc && npm run build:rollup && npm run test",
     "build:tsc": "tsc",
     "build:rollup": "rollup -c",
     "build:uglify": "uglifyjs dist/zlib.js -o dist/zlib.min.js -cm --source-map",
