@@ -199,12 +199,12 @@ var zlibes = (function (exports) {
         let code = 0;
         let table;
         let value;
-        let reqeatLengthCode;
-        let reqeatLengthValue;
-        let reqeatLengthExt;
-        let reqeatDistanceCode;
-        let reqeatDistanceValue;
-        let reqeatDistanceExt;
+        let repeatLengthCode;
+        let repeatLengthValue;
+        let repeatLengthExt;
+        let repeatDistanceCode;
+        let repeatDistanceValue;
+        let repeatDistanceExt;
         let repeatStartIndex;
         while (!stream.isEnd) {
             value = undefined;
@@ -231,20 +231,20 @@ var zlibes = (function (exports) {
             if (value === 256) {
                 break;
             }
-            reqeatLengthCode = value - 257;
-            reqeatLengthValue = LENGTH_EXTRA_BIT_BASE[reqeatLengthCode];
-            reqeatLengthExt = LENGTH_EXTRA_BIT_LEN[reqeatLengthCode];
-            if (0 < reqeatLengthExt) {
-                reqeatLengthValue += stream.readRangeCoded(reqeatLengthExt);
+            repeatLengthCode = value - 257;
+            repeatLengthValue = LENGTH_EXTRA_BIT_BASE[repeatLengthCode];
+            repeatLengthExt = LENGTH_EXTRA_BIT_LEN[repeatLengthCode];
+            if (0 < repeatLengthExt) {
+                repeatLengthValue += stream.readRangeCoded(repeatLengthExt);
             }
-            reqeatDistanceCode = stream.readRangeCoded(5);
-            reqeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[reqeatDistanceCode];
-            reqeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[reqeatDistanceCode];
-            if (0 < reqeatDistanceExt) {
-                reqeatDistanceValue += stream.readRangeCoded(reqeatDistanceExt);
+            repeatDistanceCode = stream.readRangeCoded(5);
+            repeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[repeatDistanceCode];
+            repeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[repeatDistanceCode];
+            if (0 < repeatDistanceExt) {
+                repeatDistanceValue += stream.readRangeCoded(repeatDistanceExt);
             }
-            repeatStartIndex = bufferIndex - reqeatDistanceValue;
-            for (let i = 0; i < reqeatLengthValue; i++) {
+            repeatStartIndex = bufferIndex - repeatDistanceValue;
+            for (let i = 0; i < repeatLengthValue; i++) {
                 buffer[bufferIndex] = buffer[repeatStartIndex + i];
                 bufferIndex++;
             }
@@ -377,14 +377,14 @@ var zlibes = (function (exports) {
         let dataCode = 0;
         let dataHuffmanTable;
         let data;
-        let reqeatLengthCode;
-        let reqeatLengthValue;
-        let reqeatLengthExt;
-        let reqeatDistanceCode;
-        let reqeatDistanceValue;
-        let reqeatDistanceExt;
-        let reqeatDistanceCodeCodelen;
-        let reqeatDistanceCodeCode;
+        let repeatLengthCode;
+        let repeatLengthValue;
+        let repeatLengthExt;
+        let repeatDistanceCode;
+        let repeatDistanceValue;
+        let repeatDistanceExt;
+        let repeatDistanceCodeCodelen;
+        let repeatDistanceCodeCode;
         let distanceHuffmanTable;
         let repeatStartIndex;
         while (!stream.isEnd) {
@@ -412,35 +412,35 @@ var zlibes = (function (exports) {
             if (data === 256) {
                 break;
             }
-            reqeatLengthCode = data - 257;
-            reqeatLengthValue = LENGTH_EXTRA_BIT_BASE[reqeatLengthCode];
-            reqeatLengthExt = LENGTH_EXTRA_BIT_LEN[reqeatLengthCode];
-            if (0 < reqeatLengthExt) {
-                reqeatLengthValue += stream.readRangeCoded(reqeatLengthExt);
+            repeatLengthCode = data - 257;
+            repeatLengthValue = LENGTH_EXTRA_BIT_BASE[repeatLengthCode];
+            repeatLengthExt = LENGTH_EXTRA_BIT_LEN[repeatLengthCode];
+            if (0 < repeatLengthExt) {
+                repeatLengthValue += stream.readRangeCoded(repeatLengthExt);
             }
-            reqeatDistanceCode = undefined;
-            reqeatDistanceCodeCodelen = distanceCodelenMin;
-            reqeatDistanceCodeCode = stream.readRangeCoded(distanceCodelenMin - 1);
-            while (reqeatDistanceCodeCodelen <= distanceCodelenMax) {
-                distanceHuffmanTable = distanceHuffmanTables.get(reqeatDistanceCodeCodelen);
-                reqeatDistanceCodeCode <<= 1;
-                reqeatDistanceCodeCode |= stream.read();
-                reqeatDistanceCode = distanceHuffmanTable.get(reqeatDistanceCodeCode);
-                if (reqeatDistanceCode !== undefined) {
+            repeatDistanceCode = undefined;
+            repeatDistanceCodeCodelen = distanceCodelenMin;
+            repeatDistanceCodeCode = stream.readRangeCoded(distanceCodelenMin - 1);
+            while (repeatDistanceCodeCodelen <= distanceCodelenMax) {
+                distanceHuffmanTable = distanceHuffmanTables.get(repeatDistanceCodeCodelen);
+                repeatDistanceCodeCode <<= 1;
+                repeatDistanceCodeCode |= stream.read();
+                repeatDistanceCode = distanceHuffmanTable.get(repeatDistanceCodeCode);
+                if (repeatDistanceCode !== undefined) {
                     break;
                 }
-                reqeatDistanceCodeCodelen++;
+                repeatDistanceCodeCodelen++;
             }
-            if (reqeatDistanceCode === undefined) {
+            if (repeatDistanceCode === undefined) {
                 throw new Error('Data is corrupted');
             }
-            reqeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[reqeatDistanceCode];
-            reqeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[reqeatDistanceCode];
-            if (0 < reqeatDistanceExt) {
-                reqeatDistanceValue += stream.readRangeCoded(reqeatDistanceExt);
+            repeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[repeatDistanceCode];
+            repeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[repeatDistanceCode];
+            if (0 < repeatDistanceExt) {
+                repeatDistanceValue += stream.readRangeCoded(repeatDistanceExt);
             }
-            repeatStartIndex = bufferIndex - reqeatDistanceValue;
-            for (let i = 0; i < reqeatLengthValue; i++) {
+            repeatStartIndex = bufferIndex - repeatDistanceValue;
+            for (let i = 0; i < repeatLengthValue; i++) {
                 buffer[bufferIndex] = buffer[repeatStartIndex + i];
                 bufferIndex++;
             }
