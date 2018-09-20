@@ -1,17 +1,17 @@
 export default {
-  input: 'tsc/zlib.js',
+  input: 'dist/tsc/zlib.js',
   output: [
     {
-      file: 'dist/zlib.js',
+      file: 'dist/browser/zlib.js',
       format: 'iife',
       name: 'zlibes'
     },
     {
-      file: 'lib/zlib.js',
+      file: 'dist/cjs/zlib.js',
       format: 'cjs',
     },
     {
-      file: 'lib/zlib.mjs',
+      file: 'dist/esm/zlib.mjs',
       format: 'es',
     }
   ]

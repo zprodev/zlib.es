@@ -2,16 +2,16 @@
   "name": "zlib.es",
   "version": "0.0.1",
   "description": "WIP",
-  "main": "lib/zlib.js",
-  "module": "lib/zlib.mjs",
-  "types": "tsc/zlib.d.ts",
+  "main": "dist/cjs/zlib.js",
+  "module": "dist/esm/zlib.mjs",
+  "types": "dist/tsc/zlib.d.ts",
   "scripts": {
     "test": "mocha ./test/index.js",
     "build": "npm run lint && npm run build:tsc && npm run build:rollup && npm run build:uglify && npm run test",
     "debug": "npm run build:tsc && npm run build:rollup && npm run test",
     "build:tsc": "tsc",
     "build:rollup": "rollup -c",
-    "build:uglify": "uglifyjs dist/zlib.js -o dist/zlib.min.js -cm --source-map",
+    "build:uglify": "uglifyjs dist/browser/zlib.js -o dist/browser/zlib.min.js -cm --source-map",
     "lint": "tslint --fix './src/**/*.ts'"
   },
   "repository": {

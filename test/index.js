@@ -1,5 +1,5 @@
 const assert = require('assert');
-const zlibes = require('../lib/zlib');
+const zlibes = require('../dist/cjs/zlib');
 
 const RAW           = new Uint8Array([84, 104, 105, 115, 32, 105, 115, 32, 122, 108, 105, 98, 46, 101, 115]);
 const UNCOMPRESSED  = new Uint8Array([120, 156, 1, 15, 0, 240, 255, 84, 104, 105, 115, 32, 105, 115, 32, 122, 108, 105, 98, 46, 101, 115, 43, 35, 5, 108]);
