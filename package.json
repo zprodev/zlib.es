@@ -1,7 +1,7 @@
 {
   "name": "zlib.es",
-  "version": "0.0.1",
-  "description": "WIP",
+  "version": "0.1.0",
+  "description": "ECMAScript compliant lightweight zlib implementation",
   "main": "dist/cjs/zlib.js",
   "module": "dist/esm/zlib.mjs",
   "types": "dist/tsc/zlib.d.ts",
@@ -23,7 +23,14 @@
   "bugs": {
     "url": "https://github.com/zprodev/zlib.es/issues"
   },
+  "files": [
+    "README.md",
+    "dist"
+  ],
   "homepage": "https://github.com/zprodev/zlib.es#readme",
+  "keywords": [
+    "zlib"
+  ],
   "devDependencies": {
     "mocha": "^5.2.0",
     "rollup": "^0.65.2",
