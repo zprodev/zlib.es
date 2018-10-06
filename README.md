@@ -35,5 +35,5 @@ const compressedData = deflate(rawData); // Input type is Uint8Array
 ```
 import { inflate } from 'zlib.es';
 
-const rawData = deflate(compressedData);
+const rawData = inflate(compressedData);
 ```
