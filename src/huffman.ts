@@ -15,8 +15,8 @@ export function generateHuffmanTable(codelenValues: Map<number, number[]>): Map<
   let values: number[];
   const bitlenTables = new Map();
   for (let bitlen = codelenMin; bitlen <= codelenMax; bitlen++) {
-    values = codelenValues.get(bitlen) as number[]; 
-    if (values === undefined) values = [];
+    values = codelenValues.get(bitlen) as number[];
+    if (values === undefined) { values = []; }
     values.sort((a, b) => {
       if ( a < b ) { return -1; }
       if ( a > b ) { return 1; }
