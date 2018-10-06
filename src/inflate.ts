@@ -112,13 +112,13 @@ function inflateFixedBlock(stream: BitReadStream, buffer: Uint8Array, bufferInde
     repeatLengthValue = LENGTH_EXTRA_BIT_BASE[repeatLengthCode];
     repeatLengthExt = LENGTH_EXTRA_BIT_LEN[repeatLengthCode];
     if (0 < repeatLengthExt) {
-      repeatLengthValue += stream.readRangeCoded(repeatLengthExt);
+      repeatLengthValue += stream.readRange(repeatLengthExt);
     }
     repeatDistanceCode = stream.readRangeCoded(5);
     repeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[repeatDistanceCode];
     repeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[repeatDistanceCode];
     if (0 < repeatDistanceExt) {
-      repeatDistanceValue += stream.readRangeCoded(repeatDistanceExt);
+      repeatDistanceValue += stream.readRange(repeatDistanceExt);
     }
     repeatStartIndex = bufferIndex - repeatDistanceValue;
     for (let i = 0; i < repeatLengthValue; i++) {
@@ -285,7 +285,7 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8Array, bufferIn
     repeatLengthValue = LENGTH_EXTRA_BIT_BASE[repeatLengthCode];
     repeatLengthExt = LENGTH_EXTRA_BIT_LEN[repeatLengthCode];
     if (0 < repeatLengthExt) {
-      repeatLengthValue += stream.readRangeCoded(repeatLengthExt);
+      repeatLengthValue += stream.readRange(repeatLengthExt);
     }
 
     repeatDistanceCode = undefined;
@@ -307,7 +307,7 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8Array, bufferIn
     repeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[repeatDistanceCode];
     repeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[repeatDistanceCode];
     if (0 < repeatDistanceExt) {
-      repeatDistanceValue += stream.readRangeCoded(repeatDistanceExt);
+      repeatDistanceValue += stream.readRange(repeatDistanceExt);
     }
     repeatStartIndex = bufferIndex - repeatDistanceValue;
     for (let i = 0; i < repeatLengthValue; i++) {
