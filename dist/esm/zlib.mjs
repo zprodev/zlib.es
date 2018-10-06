@@ -143,6 +143,9 @@ function generateHuffmanTable(codelenValues) {
     const bitlenTables = new Map();
     for (let bitlen = codelenMin; bitlen <= codelenMax; bitlen++) {
         values = codelenValues.get(bitlen);
+        if (values === undefined) {
+            values = [];
+        }
         values.sort((a, b) => {
             if (a < b) {
                 return -1;
@@ -325,13 +328,13 @@ function inflateFixedBlock(stream, buffer, bufferIndex) {
         repeatLengthValue = LENGTH_EXTRA_BIT_BASE[repeatLengthCode];
         repeatLengthExt = LENGTH_EXTRA_BIT_LEN[repeatLengthCode];
         if (0 < repeatLengthExt) {
-            repeatLengthValue += stream.readRangeCoded(repeatLengthExt);
+            repeatLengthValue += stream.readRange(repeatLengthExt);
         }
         repeatDistanceCode = stream.readRangeCoded(5);
         repeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[repeatDistanceCode];
         repeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[repeatDistanceCode];
         if (0 < repeatDistanceExt) {
-            repeatDistanceValue += stream.readRangeCoded(repeatDistanceExt);
+            repeatDistanceValue += stream.readRange(repeatDistanceExt);
         }
         repeatStartIndex = bufferIndex - repeatDistanceValue;
         for (let i = 0; i < repeatLengthValue; i++) {
@@ -506,7 +509,7 @@ function inflateDynamicBlock(stream, buffer, bufferIndex) {
         repeatLengthValue = LENGTH_EXTRA_BIT_BASE[repeatLengthCode];
         repeatLengthExt = LENGTH_EXTRA_BIT_LEN[repeatLengthCode];
         if (0 < repeatLengthExt) {
-            repeatLengthValue += stream.readRangeCoded(repeatLengthExt);
+            repeatLengthValue += stream.readRange(repeatLengthExt);
         }
         repeatDistanceCode = undefined;
         repeatDistanceCodeCodelen = distanceCodelenMin;
@@ -527,7 +530,7 @@ function inflateDynamicBlock(stream, buffer, bufferIndex) {
         repeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[repeatDistanceCode];
         repeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[repeatDistanceCode];
         if (0 < repeatDistanceExt) {
-            repeatDistanceValue += stream.readRangeCoded(repeatDistanceExt);
+            repeatDistanceValue += stream.readRange(repeatDistanceExt);
         }
         repeatStartIndex = bufferIndex - repeatDistanceValue;
         for (let i = 0; i < repeatLengthValue; i++) {
