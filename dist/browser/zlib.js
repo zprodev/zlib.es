@@ -43,88 +43,6 @@ var zlibes = (function (exports) {
         16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
     ];
 
-    class BitWriteStream {
-        constructor(buffer, bufferOffset = 0, bitsOffset = 0) {
-            this.nowBitsIndex = 0;
-            this.isEnd = false;
-            this.buffer = buffer;
-            this.bufferIndex = bufferOffset;
-            this.nowBits = buffer[bufferOffset];
-            this.nowBitsIndex = bitsOffset;
-        }
-        write(bit) {
-            if (this.isEnd) {
-                throw new Error('Lack of data length');
-            }
-            bit <<= this.nowBitsIndex;
-            this.nowBits += bit;
-            this.nowBitsIndex++;
-            if (this.nowBitsIndex >= 8) {
-                this.buffer[this.bufferIndex] = this.nowBits;
-                this.bufferIndex++;
-                this.nowBits = 0;
-                this.nowBitsIndex = 0;
-                if (this.buffer.length <= this.bufferIndex) {
-                    this.isEnd = true;
-                }
-            }
-        }
-        writeRange(value, length) {
-            let mask = 1;
-            let bit = 0;
-            for (let i = 0; i < length; i++) {
-                bit = (value & mask) ? 1 : 0;
-                this.write(bit);
-                mask <<= 1;
-            }
-        }
-        writeRangeCoded(value, length) {
-            let mask = 1 << (length - 1);
-            let bit = 0;
-            for (let i = 0; i < length; i++) {
-                bit = (value & mask) ? 1 : 0;
-                this.write(bit);
-                mask >>>= 1;
-            }
-        }
-    }
-
-    function deflate(input) {
-        let inputIndex = 0;
-        let stream = new BitWriteStream(new Uint8Array(BLOCK_MAX_BUFFER_LEN));
-        while (inputIndex < input.length) {
-            if (stream.buffer.length < stream.bufferIndex + BLOCK_MAX_BUFFER_LEN) {
-                const newBuffer = new Uint8Array(stream.buffer.length + BLOCK_MAX_BUFFER_LEN);
-                newBuffer.set(stream.buffer);
-                stream = new BitWriteStream(newBuffer, stream.bufferIndex, stream.nowBitsIndex);
-            }
-            if (input.length - inputIndex <= 0xffff) {
-                stream.writeRange(1, 1);
-            }
-            else {
-                stream.writeRange(0, 1);
-            }
-            stream.writeRange(0, 2);
-            inputIndex = deflateUncompressedBlock(stream, input, inputIndex);
-        }
-        const writeLen = (stream.nowBitsIndex === 0) ? stream.bufferIndex : stream.bufferIndex + 1;
-        return stream.buffer.subarray(0, writeLen);
-    }
-    function deflateUncompressedBlock(stream, input, inputIndex) {
-        stream.writeRange(0, 5);
-        const LEN = (input.length - inputIndex > 0xffff) ? 0xffff : input.length;
-        const NLEN = 0xffff - LEN;
-        stream.writeRange(LEN & 0xff, 8);
-        stream.writeRange(LEN >> 8, 8);
-        stream.writeRange(NLEN & 0xff, 8);
-        stream.writeRange(NLEN >> 8, 8);
-        for (let i = 0; i < LEN; i++) {
-            stream.writeRange(input[inputIndex], 8);
-            inputIndex++;
-        }
-        return inputIndex;
-    }
-
     function generateHuffmanTable(codelenValues) {
         const codelens = codelenValues.keys();
         let iteratorResult = codelens.next();
@@ -180,6 +98,425 @@ var zlibes = (function (exports) {
                         codelenValues.get(8).push(i);
         }
         return codelenValues;
+    }
+    function generateDeflateHuffmanTable(values) {
+        const valuesCount = {};
+        for (const value of values) {
+            if (!valuesCount[value]) {
+                valuesCount[value] = 1;
+            }
+            else {
+                valuesCount[value]++;
+            }
+        }
+        const valuesCountKeys = Object.keys(valuesCount);
+        let tmpPackages = [];
+        let tmpPackageIndex = 0;
+        let packages = [];
+        if (valuesCountKeys.length === 1) {
+            packages.push({
+                count: valuesCount[0],
+                simbles: [Number(valuesCountKeys[0])],
+            });
+        }
+        else {
+            for (let i = 0; i < 15; i++) {
+                packages = [];
+                valuesCountKeys.forEach((value) => {
+                    const pack = {
+                        count: valuesCount[Number(value)],
+                        simbles: [Number(value)],
+                    };
+                    packages.push(pack);
+                });
+                tmpPackageIndex = 0;
+                while (tmpPackageIndex + 2 <= tmpPackages.length) {
+                    const pack = {
+                        count: tmpPackages[tmpPackageIndex].count + tmpPackages[tmpPackageIndex + 1].count,
+                        simbles: tmpPackages[tmpPackageIndex].simbles.concat(tmpPackages[tmpPackageIndex + 1].simbles),
+                    };
+                    packages.push(pack);
+                    tmpPackageIndex += 2;
+                }
+                packages = packages.sort((a, b) => {
+                    if (a.count < b.count) {
+                        return -1;
+                    }
+                    if (a.count > b.count) {
+                        return 1;
+                    }
+                    return 0;
+                });
+                if (packages.length % 2 !== 0) {
+                    packages.pop();
+                }
+                tmpPackages = packages;
+            }
+        }
+        const valuesCodelen = {};
+        packages.forEach((pack) => {
+            pack.simbles.forEach((symble) => {
+                if (!valuesCodelen[symble]) {
+                    valuesCodelen[symble] = 1;
+                }
+                else {
+                    valuesCodelen[symble]++;
+                }
+            });
+        });
+        let group;
+        const valuesCodelenKeys = Object.keys(valuesCodelen);
+        const codelenGroup = {};
+        let code = 0;
+        let codelen = 3;
+        let codelenValueMin = Number.MAX_SAFE_INTEGER;
+        let codelenValueMax = 0;
+        valuesCodelenKeys.forEach((valuesCodelenKey) => {
+            codelen = valuesCodelen[Number(valuesCodelenKey)];
+            if (!codelenGroup[codelen]) {
+                codelenGroup[codelen] = [];
+                if (codelenValueMin > codelen) {
+                    codelenValueMin = codelen;
+                }
+                if (codelenValueMax < codelen) {
+                    codelenValueMax = codelen;
+                }
+            }
+            codelenGroup[codelen].push(Number(valuesCodelenKey));
+        });
+        code = 0;
+        const table = new Map();
+        for (let i = codelenValueMin; i <= codelenValueMax; i++) {
+            group = codelenGroup[i];
+            if (group) {
+                group = group.sort((a, b) => {
+                    if (a < b) {
+                        return -1;
+                    }
+                    if (a > b) {
+                        return 1;
+                    }
+                    return 0;
+                });
+                group.forEach((value) => {
+                    table.set(value, { code, bitlen: i });
+                    code++;
+                });
+            }
+            code <<= 1;
+        }
+        return table;
+    }
+
+    function generateLZ77CodeValues(input) {
+        const lengthCodeValues = [256];
+        const distanceCodeValues = [];
+        const inputLen = input.length;
+        let slideIndexBase = 0;
+        let slideIndex = 0;
+        let nowIndex = 0;
+        let repeatLength = 0;
+        let repeatLengthMax = 0;
+        let repeatLengthMaxIndex = 0;
+        let distance = 0;
+        let repeatLengthCodeValue = 0;
+        let repeatDistanceCodeValue = 0;
+        let repeatLengthCodeValueMax = 256;
+        let repeatDistanceCodeValueMax = 0;
+        while (nowIndex < inputLen) {
+            slideIndexBase = (nowIndex > 0x8000) ? nowIndex - 0x8000 : 0;
+            slideIndex = 0;
+            repeatLength = 0;
+            repeatLengthMax = 0;
+            while (slideIndexBase + slideIndex < nowIndex) {
+                repeatLength = 0;
+                while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
+                    repeatLength++;
+                }
+                if (repeatLengthMax < repeatLength) {
+                    repeatLengthMax = repeatLength;
+                    repeatLengthMaxIndex = slideIndexBase + slideIndex;
+                }
+                slideIndex++;
+            }
+            if (repeatLengthMax >= 3) {
+                distance = nowIndex - repeatLengthMaxIndex;
+                for (let i = 0; LENGTH_EXTRA_BIT_BASE.length; i++) {
+                    if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
+                        break;
+                    }
+                    repeatLengthCodeValue = i;
+                }
+                repeatLengthCodeValue += 257;
+                lengthCodeValues.push(repeatLengthCodeValue);
+                if (repeatLengthCodeValueMax < repeatLengthCodeValue) {
+                    repeatLengthCodeValueMax = repeatLengthCodeValue;
+                }
+                for (let i = 0; DISTANCE_EXTRA_BIT_BASE.length; i++) {
+                    if (DISTANCE_EXTRA_BIT_BASE[i] > distance) {
+                        break;
+                    }
+                    repeatDistanceCodeValue = i;
+                }
+                distanceCodeValues.push(repeatDistanceCodeValue);
+                if (repeatDistanceCodeValueMax < repeatDistanceCodeValue) {
+                    repeatDistanceCodeValueMax = repeatDistanceCodeValue;
+                }
+                nowIndex += repeatLengthMax;
+            }
+            else {
+                lengthCodeValues.push(input[nowIndex]);
+                nowIndex++;
+            }
+        }
+        return {
+            repeatLengthCodeValueMax,
+            repeatDistanceCodeValueMax,
+            lengthCodeValues,
+            distanceCodeValues,
+        };
+    }
+
+    class BitWriteStream {
+        constructor(buffer, bufferOffset = 0, bitsOffset = 0) {
+            this.nowBitsIndex = 0;
+            this.isEnd = false;
+            this.buffer = buffer;
+            this.bufferIndex = bufferOffset;
+            this.nowBits = buffer[bufferOffset];
+            this.nowBitsIndex = bitsOffset;
+        }
+        write(bit) {
+            if (this.isEnd) {
+                throw new Error('Lack of data length');
+            }
+            bit <<= this.nowBitsIndex;
+            this.nowBits += bit;
+            this.nowBitsIndex++;
+            if (this.nowBitsIndex >= 8) {
+                this.buffer[this.bufferIndex] = this.nowBits;
+                this.bufferIndex++;
+                this.nowBits = 0;
+                this.nowBitsIndex = 0;
+                if (this.buffer.length <= this.bufferIndex) {
+                    this.isEnd = true;
+                }
+            }
+        }
+        writeRange(value, length) {
+            let mask = 1;
+            let bit = 0;
+            for (let i = 0; i < length; i++) {
+                bit = (value & mask) ? 1 : 0;
+                this.write(bit);
+                mask <<= 1;
+            }
+        }
+        writeRangeCoded(value, length) {
+            let mask = 1 << (length - 1);
+            let bit = 0;
+            for (let i = 0; i < length; i++) {
+                bit = (value & mask) ? 1 : 0;
+                this.write(bit);
+                mask >>>= 1;
+            }
+        }
+    }
+
+    function deflate(input) {
+        const streamHeap = (input.length < BLOCK_MAX_BUFFER_LEN / 2) ? BLOCK_MAX_BUFFER_LEN : input.length * 2;
+        const stream = new BitWriteStream(new Uint8Array(streamHeap));
+        stream.writeRange(1, 1);
+        stream.writeRange(BTYPE.DYNAMIC, 2);
+        deflateDynamicBlock(stream, input);
+        if (stream.nowBitsIndex !== 0) {
+            stream.writeRange(0, 8 - stream.nowBitsIndex);
+        }
+        return stream.buffer.subarray(0, stream.bufferIndex);
+    }
+    function deflateDynamicBlock(stream, input) {
+        const inputLen = input.length;
+        const lz77CodeValuesObj = generateLZ77CodeValues(input);
+        const dataHuffmanTables = generateDeflateHuffmanTable(lz77CodeValuesObj.lengthCodeValues);
+        const distanceHuffmanTables = generateDeflateHuffmanTable(lz77CodeValuesObj.distanceCodeValues);
+        const codelens = [];
+        for (let i = 0; i <= lz77CodeValuesObj.repeatLengthCodeValueMax; i++) {
+            if (dataHuffmanTables.has(i)) {
+                codelens.push(dataHuffmanTables.get(i).bitlen);
+            }
+            else {
+                codelens.push(0);
+            }
+        }
+        const HLIT = codelens.length;
+        for (let i = 0; i <= lz77CodeValuesObj.repeatDistanceCodeValueMax; i++) {
+            if (distanceHuffmanTables.has(i)) {
+                codelens.push(distanceHuffmanTables.get(i).bitlen);
+            }
+            else {
+                codelens.push(0);
+            }
+        }
+        const HDIST = codelens.length - HLIT;
+        // ランレングス符号化
+        const runLengthCodes = [];
+        const runLengthRepeatCount = [];
+        let codelen = 0;
+        let repeatLength = 0;
+        for (let i = 0; i < codelens.length; i++) {
+            codelen = codelens[i];
+            repeatLength = 1;
+            while (codelen === codelens[i + 1]) {
+                repeatLength++;
+                i++;
+                if (codelen === 0) {
+                    if (138 <= repeatLength) {
+                        break;
+                    }
+                }
+                else {
+                    if (6 <= repeatLength) {
+                        break;
+                    }
+                }
+            }
+            if (4 <= repeatLength) {
+                if (codelen === 0) {
+                    if (11 <= repeatLength) {
+                        runLengthCodes.push(18);
+                    }
+                    else {
+                        runLengthCodes.push(17);
+                    }
+                }
+                else {
+                    runLengthCodes.push(codelen); // TODO:
+                    runLengthRepeatCount.push(1); // TODO:
+                    repeatLength--; // TODO:
+                    runLengthCodes.push(16);
+                }
+                runLengthRepeatCount.push(repeatLength);
+            }
+            else {
+                for (let j = 0; j < repeatLength; j++) {
+                    runLengthCodes.push(codelen);
+                    runLengthRepeatCount.push(1);
+                }
+            }
+        }
+        const codelenHuffmanTable = generateDeflateHuffmanTable(runLengthCodes);
+        let HCLEN = 0;
+        CODELEN_VALUES.forEach((value, index) => {
+            if (codelenHuffmanTable.has(value)) {
+                HCLEN = index + 1;
+            }
+        });
+        // HLIT
+        stream.writeRange(HLIT - 257, 5);
+        // HDIST
+        stream.writeRange(HDIST - 1, 5);
+        // HCLEN
+        stream.writeRange(HCLEN - 4, 4);
+        let codelenTableObj;
+        // codelenHuffmanTable
+        for (let i = 0; i < HCLEN; i++) {
+            codelenTableObj = codelenHuffmanTable.get(CODELEN_VALUES[i]);
+            if (codelenTableObj !== undefined) {
+                stream.writeRange(codelenTableObj.bitlen, 3);
+            }
+            else {
+                stream.writeRange(0, 3);
+            }
+        }
+        runLengthCodes.forEach((value, index) => {
+            codelenTableObj = codelenHuffmanTable.get(value);
+            if (codelenTableObj !== undefined) {
+                stream.writeRangeCoded(codelenTableObj.code, codelenTableObj.bitlen);
+            }
+            else {
+                throw new Error('Data is corrupted');
+            }
+            if (value === 18) {
+                stream.writeRange(runLengthRepeatCount[index] - 11, 7);
+            }
+            else if (value === 17) {
+                stream.writeRange(runLengthRepeatCount[index] - 3, 3);
+            }
+            else if (value === 16) {
+                stream.writeRange(runLengthRepeatCount[index] - 3, 2);
+            }
+        });
+        let slideIndexBase = 0;
+        let slideIndex = 0;
+        let nowIndex = 0;
+        repeatLength = 0;
+        let repeatLengthMax = 0;
+        let repeatLengthMaxIndex = 0;
+        let distance = 0;
+        let repeatLengthCodeValue = 0;
+        let repeatDistanceCodeValue = 0;
+        while (nowIndex < inputLen) {
+            slideIndexBase = (nowIndex > 0x8000) ? nowIndex - 0x8000 : 0;
+            slideIndex = 0;
+            repeatLength = 0;
+            repeatLengthMax = 0;
+            while (slideIndexBase + slideIndex < nowIndex) {
+                repeatLength = 0;
+                while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
+                    repeatLength++;
+                }
+                if (repeatLengthMax < repeatLength) {
+                    repeatLengthMax = repeatLength;
+                    repeatLengthMaxIndex = slideIndexBase + slideIndex;
+                }
+                slideIndex++;
+            }
+            if (repeatLengthMax >= 3) {
+                distance = nowIndex - repeatLengthMaxIndex;
+                for (let i = 0; LENGTH_EXTRA_BIT_BASE.length; i++) {
+                    if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
+                        break;
+                    }
+                    repeatLengthCodeValue = i;
+                }
+                codelenTableObj = dataHuffmanTables.get(repeatLengthCodeValue + 257);
+                if (codelenTableObj === undefined) {
+                    throw new Error('Data is corrupted');
+                }
+                stream.writeRangeCoded(codelenTableObj.code, codelenTableObj.bitlen);
+                if (0 < LENGTH_EXTRA_BIT_LEN[repeatLengthCodeValue]) {
+                    stream.writeRange(repeatLengthMax - LENGTH_EXTRA_BIT_BASE[repeatLengthCodeValue], LENGTH_EXTRA_BIT_LEN[repeatLengthCodeValue]);
+                }
+                for (let i = 0; DISTANCE_EXTRA_BIT_BASE.length; i++) {
+                    if (DISTANCE_EXTRA_BIT_BASE[i] > distance) {
+                        break;
+                    }
+                    repeatDistanceCodeValue = i;
+                }
+                const distanceTableObj = distanceHuffmanTables.get(repeatDistanceCodeValue);
+                if (distanceTableObj === undefined) {
+                    throw new Error('Data is corrupted');
+                }
+                stream.writeRangeCoded(distanceTableObj.code, distanceTableObj.bitlen);
+                if (0 < DISTANCE_EXTRA_BIT_LEN[repeatDistanceCodeValue]) {
+                    stream.writeRange(distance - DISTANCE_EXTRA_BIT_BASE[repeatDistanceCodeValue], DISTANCE_EXTRA_BIT_LEN[repeatDistanceCodeValue]);
+                }
+                nowIndex += repeatLengthMax;
+            }
+            else {
+                codelenTableObj = dataHuffmanTables.get(input[nowIndex]);
+                if (codelenTableObj === undefined) {
+                    throw new Error('Data is corrupted');
+                }
+                stream.writeRangeCoded(codelenTableObj.code, codelenTableObj.bitlen);
+                nowIndex++;
+            }
+        }
+        codelenTableObj = dataHuffmanTables.get(256);
+        if (codelenTableObj === undefined) {
+            throw new Error('Data is corrupted');
+        }
+        stream.writeRangeCoded(codelenTableObj.code, codelenTableObj.bitlen);
     }
 
     class BitReadStream {

@@ -28,8 +28,6 @@ import { deflate } from 'zlib.es';
 const compressedData = deflate(rawData); // Input type is Uint8Array
 ```
 
-> There is no compression effect by deflate in the current version
-
 ### decompression
 
 ```
