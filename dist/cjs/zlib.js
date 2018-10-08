@@ -233,6 +233,9 @@ function generateLZ77CodeValues(input) {
             repeatLength = 0;
             while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
                 repeatLength++;
+                if (257 < repeatLength) {
+                    break;
+                }
             }
             if (repeatLengthMax < repeatLength) {
                 repeatLengthMax = repeatLength;
@@ -242,7 +245,7 @@ function generateLZ77CodeValues(input) {
         }
         if (repeatLengthMax >= 3) {
             distance = nowIndex - repeatLengthMaxIndex;
-            for (let i = 0; LENGTH_EXTRA_BIT_BASE.length; i++) {
+            for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
                 if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
                     break;
                 }
@@ -253,7 +256,7 @@ function generateLZ77CodeValues(input) {
             if (repeatLengthCodeValueMax < repeatLengthCodeValue) {
                 repeatLengthCodeValueMax = repeatLengthCodeValue;
             }
-            for (let i = 0; DISTANCE_EXTRA_BIT_BASE.length; i++) {
+            for (let i = 0; i < DISTANCE_EXTRA_BIT_BASE.length; i++) {
                 if (DISTANCE_EXTRA_BIT_BASE[i] > distance) {
                     break;
                 }
@@ -391,9 +394,9 @@ function deflateDynamicBlock(stream, input) {
                 }
             }
             else {
-                runLengthCodes.push(codelen); // TODO:
-                runLengthRepeatCount.push(1); // TODO:
-                repeatLength--; // TODO:
+                runLengthCodes.push(codelen);
+                runLengthRepeatCount.push(1);
+                repeatLength--;
                 runLengthCodes.push(16);
             }
             runLengthRepeatCount.push(repeatLength);
@@ -465,6 +468,9 @@ function deflateDynamicBlock(stream, input) {
             repeatLength = 0;
             while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
                 repeatLength++;
+                if (257 < repeatLength) {
+                    break;
+                }
             }
             if (repeatLengthMax < repeatLength) {
                 repeatLengthMax = repeatLength;
@@ -474,7 +480,7 @@ function deflateDynamicBlock(stream, input) {
         }
         if (repeatLengthMax >= 3) {
             distance = nowIndex - repeatLengthMaxIndex;
-            for (let i = 0; LENGTH_EXTRA_BIT_BASE.length; i++) {
+            for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
                 if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
                     break;
                 }
@@ -488,7 +494,7 @@ function deflateDynamicBlock(stream, input) {
             if (0 < LENGTH_EXTRA_BIT_LEN[repeatLengthCodeValue]) {
                 stream.writeRange(repeatLengthMax - LENGTH_EXTRA_BIT_BASE[repeatLengthCodeValue], LENGTH_EXTRA_BIT_LEN[repeatLengthCodeValue]);
             }
-            for (let i = 0; DISTANCE_EXTRA_BIT_BASE.length; i++) {
+            for (let i = 0; i < DISTANCE_EXTRA_BIT_BASE.length; i++) {
                 if (DISTANCE_EXTRA_BIT_BASE[i] > distance) {
                     break;
                 }
