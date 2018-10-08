@@ -28,6 +28,9 @@ export function generateLZ77CodeValues(input: Uint8Array) {
       repeatLength = 0;
       while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
         repeatLength++;
+        if (257 < repeatLength) {
+          break;
+        }
       }
       if (repeatLengthMax < repeatLength) {
         repeatLengthMax = repeatLength;
@@ -37,7 +40,7 @@ export function generateLZ77CodeValues(input: Uint8Array) {
     }
     if (repeatLengthMax >= 3) {
       distance = nowIndex - repeatLengthMaxIndex;
-      for (let i = 0; LENGTH_EXTRA_BIT_BASE.length; i++) {
+      for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
         if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
           break;
         }
@@ -49,7 +52,7 @@ export function generateLZ77CodeValues(input: Uint8Array) {
         repeatLengthCodeValueMax = repeatLengthCodeValue;
       }
 
-      for (let i = 0; DISTANCE_EXTRA_BIT_BASE.length; i++) {
+      for (let i = 0; i < DISTANCE_EXTRA_BIT_BASE.length; i++) {
         if (DISTANCE_EXTRA_BIT_BASE[i] > distance) {
           break;
         }

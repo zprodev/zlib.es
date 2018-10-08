@@ -31,18 +31,39 @@ describe('inflate', function() {
 });
 
 describe('deflate', function() {
-  const compressedData = zlibes.deflate(RAW);
-  describe('decompress', function() {
+  describe('RAW', function() {
+    const deflateOutput = zlibes.deflate(RAW);
     it('zlib.es', function() {
       assert.deepEqual(
         RAW,
-        zlibes.inflate(compressedData)
+        zlibes.inflate(deflateOutput)
       );
     });
     it('Node.js zlib', function() {
       assert.deepEqual(
         RAW,
-        nodeZlib.inflateSync(compressedData)
+        nodeZlib.inflateSync(deflateOutput)
+      );
+    });
+  });
+  describe('Repeat Length Limit', function() {
+    const ascii = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
+    let asciiRepeat = '';
+    while(asciiRepeat.length < 1000){
+      asciiRepeat += ascii;
+    }
+    const deflateInput = new Uint8Array(new Buffer(asciiRepeat));
+    const deflateOutput = zlibes.deflate(deflateInput);
+    it('zlib.es', function() {
+      assert.deepEqual(
+        deflateInput,
+        zlibes.inflate(deflateOutput)
+      );
+    });
+    it('Node.js zlib', function() {
+      assert.deepEqual(
+        deflateInput,
+        nodeZlib.inflateSync(deflateOutput)
       );
     });
   });

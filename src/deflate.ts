@@ -91,9 +91,9 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
           runLengthCodes.push(17);
         }
       } else {
-        runLengthCodes.push(codelen); // TODO:
-        runLengthRepeatCount.push(1); // TODO:
-        repeatLength--; // TODO:
+        runLengthCodes.push(codelen);
+        runLengthRepeatCount.push(1);
+        repeatLength--;
         runLengthCodes.push(16);
       }
       runLengthRepeatCount.push(repeatLength);
@@ -165,6 +165,9 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
       repeatLength = 0;
       while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
         repeatLength++;
+        if (257 < repeatLength) {
+          break;
+        }
       }
       if (repeatLengthMax < repeatLength) {
         repeatLengthMax = repeatLength;
@@ -174,7 +177,7 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
     }
     if (repeatLengthMax >= 3) {
       distance = nowIndex - repeatLengthMaxIndex;
-      for (let i = 0; LENGTH_EXTRA_BIT_BASE.length; i++) {
+      for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
         if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
           break;
         }
@@ -192,7 +195,7 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
         );
       }
 
-      for (let i = 0; DISTANCE_EXTRA_BIT_BASE.length; i++) {
+      for (let i = 0; i < DISTANCE_EXTRA_BIT_BASE.length; i++) {
         if (DISTANCE_EXTRA_BIT_BASE[i] > distance) {
           break;
         }
