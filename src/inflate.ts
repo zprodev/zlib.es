@@ -9,30 +9,25 @@ import {
 } from './const';
 import {generateHuffmanTable, makeFixedHuffmanCodelenValues} from './huffman';
 import {BitReadStream} from './utils/BitReadStream';
+import {Uint8WriteStream} from './utils/Uint8WriteStream';
 
 const FIXED_HUFFMAN_TABLE = generateHuffmanTable( makeFixedHuffmanCodelenValues() );
 
 export function inflate(input: Uint8Array, offset: number = 0) {
-  let buffer = new Uint8Array(BLOCK_MAX_BUFFER_LEN);
-  let bufferIndex = 0;
+  const buffer = new Uint8WriteStream(BLOCK_MAX_BUFFER_LEN);
 
   const stream = new BitReadStream(input, offset);
   let bFinal = 0;
   let bType = 0;
   while (bFinal !== 1) {
-    if (buffer.length < bufferIndex + BLOCK_MAX_BUFFER_LEN) {
-      const newBuffer = new Uint8Array(buffer.length + BLOCK_MAX_BUFFER_LEN);
-      newBuffer.set(buffer);
-      buffer = newBuffer;
-    }
     bFinal = stream.readRange(1);
     bType = stream.readRange(2);
     if (bType === BTYPE.UNCOMPRESSED) {
-      bufferIndex = inflateUncompressedBlock(stream, buffer, bufferIndex);
+      inflateUncompressedBlock(stream, buffer);
     } else if (bType === BTYPE.FIXED) {
-      bufferIndex = inflateFixedBlock(stream, buffer, bufferIndex);
+      inflateFixedBlock(stream, buffer);
     } else if (bType === BTYPE.DYNAMIC) {
-      bufferIndex = inflateDynamicBlock(stream, buffer, bufferIndex);
+      inflateDynamicBlock(stream, buffer);
     } else {
       throw new Error('Not supported BTYPE : ' + bType);
     }
@@ -41,10 +36,10 @@ export function inflate(input: Uint8Array, offset: number = 0) {
     }
   }
 
-  return buffer.subarray(0, bufferIndex);
+  return buffer.buffer.subarray(0, buffer.index);
 }
 
-function inflateUncompressedBlock(stream: BitReadStream, buffer: Uint8Array, bufferIndex: number) {
+function inflateUncompressedBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   // Discard the padding
   stream.readRange(5);
   const LEN = stream.readRange(8) | stream.readRange(8) << 8;
@@ -53,13 +48,11 @@ function inflateUncompressedBlock(stream: BitReadStream, buffer: Uint8Array, buf
     throw new Error('Data is corrupted');
   }
   for (let i = 0; i < LEN; i++) {
-    buffer[bufferIndex] = stream.readRange(8);
-    bufferIndex++;
+    buffer.write(stream.readRange(8));
   }
-  return bufferIndex;
 }
 
-function inflateFixedBlock(stream: BitReadStream, buffer: Uint8Array, bufferIndex: number) {
+function inflateFixedBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   const tables = FIXED_HUFFMAN_TABLE;
 
   const codelens = tables.keys();
@@ -101,8 +94,7 @@ function inflateFixedBlock(stream: BitReadStream, buffer: Uint8Array, bufferInde
       throw new Error('Data is corrupted');
     }
     if (value < 256) {
-      buffer[bufferIndex] = value;
-      bufferIndex++;
+      buffer.write(value);
       continue;
     }
     if (value === 256) {
@@ -120,16 +112,14 @@ function inflateFixedBlock(stream: BitReadStream, buffer: Uint8Array, bufferInde
     if (0 < repeatDistanceExt) {
       repeatDistanceValue += stream.readRange(repeatDistanceExt);
     }
-    repeatStartIndex = bufferIndex - repeatDistanceValue;
+    repeatStartIndex = buffer.index - repeatDistanceValue;
     for (let i = 0; i < repeatLengthValue; i++) {
-      buffer[bufferIndex] = buffer[repeatStartIndex + i];
-      bufferIndex++;
+      buffer.write(buffer.buffer[repeatStartIndex + i]);
     }
   }
-  return bufferIndex;
 }
 
-function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8Array, bufferIndex: number) {
+function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   const HLIT = stream.readRange(5) + 257;
   const HDIST = stream.readRange(5) + 1;
   const HCLEN = stream.readRange(4) + 4;
@@ -274,8 +264,7 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8Array, bufferIn
       throw new Error('Data is corrupted');
     }
     if (data < 256) {
-      buffer[bufferIndex] = data;
-      bufferIndex++;
+      buffer.write(data);
       continue;
     }
     if (data === 256) {
@@ -309,11 +298,9 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8Array, bufferIn
     if (0 < repeatDistanceExt) {
       repeatDistanceValue += stream.readRange(repeatDistanceExt);
     }
-    repeatStartIndex = bufferIndex - repeatDistanceValue;
+    repeatStartIndex = buffer.index - repeatDistanceValue;
     for (let i = 0; i < repeatLengthValue; i++) {
-      buffer[bufferIndex] = buffer[repeatStartIndex + i];
-      bufferIndex++;
+      buffer.write(buffer.buffer[repeatStartIndex + i]);
     }
   }
-  return bufferIndex;
 }
