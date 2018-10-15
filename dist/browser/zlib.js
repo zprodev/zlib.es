@@ -571,29 +571,45 @@ var zlibes = (function (exports) {
         }
     }
 
+    class Uint8WriteStream {
+        constructor(extendedSize) {
+            this.index = 0;
+            this.buffer = new Uint8Array(extendedSize);
+            this.length = extendedSize;
+            this._extendedSize = extendedSize;
+        }
+        write(value) {
+            if (this.length <= this.index) {
+                this.length += this._extendedSize;
+                const newBuffer = new Uint8Array(this.length);
+                const nowSize = this.buffer.length;
+                for (let i = 0; i < nowSize; i++) {
+                    newBuffer[i] = this.buffer[i];
+                }
+                this.buffer = newBuffer;
+            }
+            this.buffer[this.index] = value;
+            this.index++;
+        }
+    }
+
     const FIXED_HUFFMAN_TABLE = generateHuffmanTable(makeFixedHuffmanCodelenValues());
     function inflate(input, offset = 0) {
-        let buffer = new Uint8Array(BLOCK_MAX_BUFFER_LEN);
-        let bufferIndex = 0;
+        const buffer = new Uint8WriteStream(BLOCK_MAX_BUFFER_LEN);
         const stream = new BitReadStream(input, offset);
         let bFinal = 0;
         let bType = 0;
         while (bFinal !== 1) {
-            if (buffer.length < bufferIndex + BLOCK_MAX_BUFFER_LEN) {
-                const newBuffer = new Uint8Array(buffer.length + BLOCK_MAX_BUFFER_LEN);
-                newBuffer.set(buffer);
-                buffer = newBuffer;
-            }
             bFinal = stream.readRange(1);
             bType = stream.readRange(2);
             if (bType === BTYPE.UNCOMPRESSED) {
-                bufferIndex = inflateUncompressedBlock(stream, buffer, bufferIndex);
+                inflateUncompressedBlock(stream, buffer);
             }
             else if (bType === BTYPE.FIXED) {
-                bufferIndex = inflateFixedBlock(stream, buffer, bufferIndex);
+                inflateFixedBlock(stream, buffer);
             }
             else if (bType === BTYPE.DYNAMIC) {
-                bufferIndex = inflateDynamicBlock(stream, buffer, bufferIndex);
+                inflateDynamicBlock(stream, buffer);
             }
             else {
                 throw new Error('Not supported BTYPE : ' + bType);
@@ -602,9 +618,9 @@ var zlibes = (function (exports) {
                 throw new Error('Data length is insufficient');
             }
         }
-        return buffer.subarray(0, bufferIndex);
+        return buffer.buffer.subarray(0, buffer.index);
     }
-    function inflateUncompressedBlock(stream, buffer, bufferIndex) {
+    function inflateUncompressedBlock(stream, buffer) {
         // Discard the padding
         stream.readRange(5);
         const LEN = stream.readRange(8) | stream.readRange(8) << 8;
@@ -613,12 +629,10 @@ var zlibes = (function (exports) {
             throw new Error('Data is corrupted');
         }
         for (let i = 0; i < LEN; i++) {
-            buffer[bufferIndex] = stream.readRange(8);
-            bufferIndex++;
+            buffer.write(stream.readRange(8));
         }
-        return bufferIndex;
     }
-    function inflateFixedBlock(stream, buffer, bufferIndex) {
+    function inflateFixedBlock(stream, buffer) {
         const tables = FIXED_HUFFMAN_TABLE;
         const codelens = tables.keys();
         let iteratorResult = codelens.next();
@@ -663,8 +677,7 @@ var zlibes = (function (exports) {
                 throw new Error('Data is corrupted');
             }
             if (value < 256) {
-                buffer[bufferIndex] = value;
-                bufferIndex++;
+                buffer.write(value);
                 continue;
             }
             if (value === 256) {
@@ -682,15 +695,13 @@ var zlibes = (function (exports) {
             if (0 < repeatDistanceExt) {
                 repeatDistanceValue += stream.readRange(repeatDistanceExt);
             }
-            repeatStartIndex = bufferIndex - repeatDistanceValue;
+            repeatStartIndex = buffer.index - repeatDistanceValue;
             for (let i = 0; i < repeatLengthValue; i++) {
-                buffer[bufferIndex] = buffer[repeatStartIndex + i];
-                bufferIndex++;
+                buffer.write(buffer.buffer[repeatStartIndex + i]);
             }
         }
-        return bufferIndex;
     }
-    function inflateDynamicBlock(stream, buffer, bufferIndex) {
+    function inflateDynamicBlock(stream, buffer) {
         const HLIT = stream.readRange(5) + 257;
         const HDIST = stream.readRange(5) + 1;
         const HCLEN = stream.readRange(4) + 4;
@@ -844,8 +855,7 @@ var zlibes = (function (exports) {
                 throw new Error('Data is corrupted');
             }
             if (data < 256) {
-                buffer[bufferIndex] = data;
-                bufferIndex++;
+                buffer.write(data);
                 continue;
             }
             if (data === 256) {
@@ -878,13 +888,11 @@ var zlibes = (function (exports) {
             if (0 < repeatDistanceExt) {
                 repeatDistanceValue += stream.readRange(repeatDistanceExt);
             }
-            repeatStartIndex = bufferIndex - repeatDistanceValue;
+            repeatStartIndex = buffer.index - repeatDistanceValue;
             for (let i = 0; i < repeatLengthValue; i++) {
-                buffer[bufferIndex] = buffer[repeatStartIndex + i];
-                bufferIndex++;
+                buffer.write(buffer.buffer[repeatStartIndex + i]);
             }
         }
-        return bufferIndex;
     }
 
     function inflate$1(input) {
