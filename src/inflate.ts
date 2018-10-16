@@ -7,7 +7,7 @@ import {
   LENGTH_EXTRA_BIT_BASE,
   LENGTH_EXTRA_BIT_LEN,
 } from './const';
-import {generateHuffmanTable, makeFixedHuffmanCodelenValues} from './huffman';
+import {generateHuffmanTable, ICodelenValues, makeFixedHuffmanCodelenValues} from './huffman';
 import {BitReadStream} from './utils/BitReadStream';
 import {Uint8WriteStream} from './utils/Uint8WriteStream';
 
@@ -125,16 +125,16 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   const HCLEN = stream.readRange(4) + 4;
 
   let codelenCodelen = 0;
-  const codelenCodelenValues = new Map();
+  const codelenCodelenValues: ICodelenValues = {};
   for (let i = 0; i < HCLEN; i++) {
     codelenCodelen = stream.readRange(3);
     if (codelenCodelen === 0) {
       continue;
     }
-    if (!codelenCodelenValues.has(codelenCodelen)) {
-      codelenCodelenValues.set(codelenCodelen, new Array());
+    if (!codelenCodelenValues[codelenCodelen]) {
+      codelenCodelenValues[codelenCodelen] = [];
     }
-    codelenCodelenValues.get(codelenCodelen).push(CODELEN_VALUES[i]);
+    codelenCodelenValues[codelenCodelen].push(CODELEN_VALUES[i]);
   }
   const codelenHuffmanTables = generateHuffmanTable(codelenCodelenValues);
 
@@ -147,8 +147,8 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
     if (codelenCodelenMin > codelenCodelen) { codelenCodelenMin = codelenCodelen; }
   });
 
-  const dataCodelenValues = new Map();
-  const distanceCodelenValues = new Map();
+  const dataCodelenValues: ICodelenValues = {};
+  const distanceCodelenValues: ICodelenValues = {};
   let codelenCode = 0;
   let codelenHuffmanTable;
   let runlengthCode;
@@ -191,15 +191,15 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
         break;
       }
       if (i < HLIT) {
-        if (!dataCodelenValues.has(codelen)) {
-          dataCodelenValues.set(codelen, new Array());
+        if (!dataCodelenValues[codelen]) {
+          dataCodelenValues[codelen] = [];
         }
-        dataCodelenValues.get(codelen).push(i++);
+        dataCodelenValues[codelen].push(i++);
       } else {
-        if (!distanceCodelenValues.has(codelen)) {
-          distanceCodelenValues.set(codelen, new Array());
+        if (!distanceCodelenValues[codelen]) {
+          distanceCodelenValues[codelen] = [];
         }
-        distanceCodelenValues.get(codelen).push(i++ - HLIT);
+        distanceCodelenValues[codelen].push(i++ - HLIT);
       }
       repeat--;
     }
