@@ -67,7 +67,6 @@ function inflateFixedBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
     if (codelenMin > codelen) { codelenMin = codelen; }
   });
   let code = 0;
-  let table;
   let value;
   let repeatLengthCode;
   let repeatLengthValue;
@@ -79,19 +78,18 @@ function inflateFixedBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   while (!stream.isEnd) {
     value = undefined;
     codelen = codelenMin;
-    code = stream.readRangeCoded(codelenMin - 1);
-    while (codelen <= codelenMax) {
-      table = tables[codelen];
-      code <<= 1;
-      code |= stream.read();
-      value = table[code];
+    code = stream.readRangeCoded(codelenMin);
+    while (true) {
+      value = tables[codelen][code];
       if (value !== undefined) {
         break;
       }
+      if (codelenMax <= codelen) {
+        throw new Error('Data is corrupted');
+      }
       codelen++;
-    }
-    if (value === undefined) {
-      throw new Error('Data is corrupted');
+      code <<= 1;
+      code |= stream.read();
     }
     if (value < 256) {
       buffer.write(value);
@@ -150,7 +148,6 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   const dataCodelenValues: ICodelenValues = {};
   const distanceCodelenValues: ICodelenValues = {};
   let codelenCode = 0;
-  let codelenHuffmanTable;
   let runlengthCode;
   let repeat = 0;
   let codelen = 0;
@@ -159,19 +156,18 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   for (let i = 0; i < codesNumber;) {
     runlengthCode = undefined;
     codelenCodelen = codelenCodelenMin;
-    codelenCode = stream.readRangeCoded(codelenCodelenMin - 1);
-    while (codelenCodelen <= codelenCodelenMax) {
-      codelenHuffmanTable = codelenHuffmanTables[codelenCodelen];
-      codelenCode <<= 1;
-      codelenCode |= stream.read();
-      runlengthCode = codelenHuffmanTable[codelenCode];
+    codelenCode = stream.readRangeCoded(codelenCodelenMin);
+    while (true) {
+      runlengthCode = codelenHuffmanTables[codelenCodelen][codelenCode];
       if (runlengthCode !== undefined) {
         break;
       }
+      if (codelenCodelenMax <= codelenCodelen) {
+        throw new Error('Data is corrupted');
+      }
       codelenCodelen++;
-    }
-    if (runlengthCode === undefined) {
-      throw new Error('Data is corrupted');
+      codelenCode <<= 1;
+      codelenCode |= stream.read();
     }
     if (runlengthCode === 16) {
       repeat = 3 + stream.readRange(2);
@@ -185,23 +181,23 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
       repeat = 1;
       codelen = runlengthCode;
     }
-    while (repeat) {
-      if (codelen <= 0) {
-        i += repeat;
-        break;
-      }
-      if (i < HLIT) {
-        if (!dataCodelenValues[codelen]) {
-          dataCodelenValues[codelen] = [];
+    if (codelen <= 0) {
+      i += repeat;
+    } else {
+      while (repeat) {
+        if (i < HLIT) {
+          if (!dataCodelenValues[codelen]) {
+            dataCodelenValues[codelen] = [];
+          }
+          dataCodelenValues[codelen].push(i++);
+        } else {
+          if (!distanceCodelenValues[codelen]) {
+            distanceCodelenValues[codelen] = [];
+          }
+          distanceCodelenValues[codelen].push(i++ - HLIT);
         }
-        dataCodelenValues[codelen].push(i++);
-      } else {
-        if (!distanceCodelenValues[codelen]) {
-          distanceCodelenValues[codelen] = [];
-        }
-        distanceCodelenValues[codelen].push(i++ - HLIT);
+        repeat--;
       }
-      repeat--;
     }
   }
   const dataHuffmanTables = generateHuffmanTable(dataCodelenValues);
@@ -228,7 +224,6 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   });
 
   let dataCode = 0;
-  let dataHuffmanTable;
   let data;
   let repeatLengthCode;
   let repeatLengthValue;
@@ -238,24 +233,22 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   let repeatDistanceExt;
   let repeatDistanceCodeCodelen;
   let repeatDistanceCodeCode;
-  let distanceHuffmanTable;
   let repeatStartIndex;
   while (!stream.isEnd) {
     data = undefined;
     dataCodelen = dataCodelenMin;
-    dataCode = stream.readRangeCoded(dataCodelenMin - 1);
-    while (dataCodelen <= dataCodelenMax) {
-      dataHuffmanTable = dataHuffmanTables[dataCodelen];
-      dataCode <<= 1;
-      dataCode |= stream.read();
-      data = dataHuffmanTable[dataCode];
+    dataCode = stream.readRangeCoded(dataCodelenMin);
+    while (true) {
+      data = dataHuffmanTables[dataCodelen][dataCode];
       if (data !== undefined) {
         break;
       }
+      if (dataCodelenMax <= dataCodelen) {
+        throw new Error('Data is corrupted');
+      }
       dataCodelen++;
-    }
-    if (data === undefined) {
-      throw new Error('Data is corrupted');
+      dataCode <<= 1;
+      dataCode |= stream.read();
     }
     if (data < 256) {
       buffer.write(data);
@@ -273,19 +266,18 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
 
     repeatDistanceCode = undefined;
     repeatDistanceCodeCodelen = distanceCodelenMin;
-    repeatDistanceCodeCode = stream.readRangeCoded(distanceCodelenMin - 1);
-    while (repeatDistanceCodeCodelen <= distanceCodelenMax) {
-      distanceHuffmanTable = distanceHuffmanTables[repeatDistanceCodeCodelen];
-      repeatDistanceCodeCode <<= 1;
-      repeatDistanceCodeCode |= stream.read();
-      repeatDistanceCode = distanceHuffmanTable[repeatDistanceCodeCode];
+    repeatDistanceCodeCode = stream.readRangeCoded(distanceCodelenMin);
+    while (true) {
+      repeatDistanceCode = distanceHuffmanTables[repeatDistanceCodeCodelen][repeatDistanceCodeCode];
       if (repeatDistanceCode !== undefined) {
         break;
       }
+      if (distanceCodelenMax <= repeatDistanceCodeCodelen) {
+        throw new Error('Data is corrupted');
+      }
       repeatDistanceCodeCodelen++;
-    }
-    if (repeatDistanceCode === undefined) {
-      throw new Error('Data is corrupted');
+      repeatDistanceCodeCode <<= 1;
+      repeatDistanceCodeCode |= stream.read();
     }
     repeatDistanceValue = DISTANCE_EXTRA_BIT_BASE[repeatDistanceCode];
     repeatDistanceExt = DISTANCE_EXTRA_BIT_LEN[repeatDistanceCode];
