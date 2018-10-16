@@ -57,17 +57,15 @@ function inflateUncompressedBlock(stream: BitReadStream, buffer: Uint8WriteStrea
 function inflateFixedBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   const tables = FIXED_HUFFMAN_TABLE;
 
-  const codelens = tables.keys();
-  let iteratorResult = codelens.next();
+  const codelens = Object.keys(tables);
   let codelen = 0;
   let codelenMax = 0;
   let codelenMin = Number.MAX_SAFE_INTEGER;
-  while (!iteratorResult.done) {
-    codelen = iteratorResult.value;
+  codelens.forEach((key) => {
+    codelen = Number(key);
     if (codelenMax < codelen) { codelenMax = codelen; }
     if (codelenMin > codelen) { codelenMin = codelen; }
-    iteratorResult = codelens.next();
-  }
+  });
   let code = 0;
   let table;
   let value;
@@ -83,10 +81,10 @@ function inflateFixedBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
     codelen = codelenMin;
     code = stream.readRangeCoded(codelenMin - 1);
     while (codelen <= codelenMax) {
-      table = tables.get(codelen) as Map<number, number>;
+      table = tables[codelen];
       code <<= 1;
       code |= stream.read();
-      value = table.get(code);
+      value = table[code];
       if (value !== undefined) {
         break;
       }
@@ -140,16 +138,14 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   }
   const codelenHuffmanTables = generateHuffmanTable(codelenCodelenValues);
 
-  const codelenCodelens = codelenHuffmanTables.keys();
-  let codelenCodelensIteratorResult = codelenCodelens.next();
+  const codelenCodelens = Object.keys(codelenHuffmanTables);
   let codelenCodelenMax = 0;
   let codelenCodelenMin = Number.MAX_SAFE_INTEGER;
-  while (!codelenCodelensIteratorResult.done) {
-    codelenCodelen = codelenCodelensIteratorResult.value;
+  codelenCodelens.forEach((key) => {
+    codelenCodelen = Number(key);
     if (codelenCodelenMax < codelenCodelen) { codelenCodelenMax = codelenCodelen; }
     if (codelenCodelenMin > codelenCodelen) { codelenCodelenMin = codelenCodelen; }
-    codelenCodelensIteratorResult = codelenCodelens.next();
-  }
+  });
 
   const dataCodelenValues = new Map();
   const distanceCodelenValues = new Map();
@@ -165,10 +161,10 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
     codelenCodelen = codelenCodelenMin;
     codelenCode = stream.readRangeCoded(codelenCodelenMin - 1);
     while (codelenCodelen <= codelenCodelenMax) {
-      codelenHuffmanTable = codelenHuffmanTables.get(codelenCodelen) as Map<number, number>;
+      codelenHuffmanTable = codelenHuffmanTables[codelenCodelen];
       codelenCode <<= 1;
       codelenCode |= stream.read();
-      runlengthCode = codelenHuffmanTable.get(codelenCode);
+      runlengthCode = codelenHuffmanTable[codelenCode];
       if (runlengthCode !== undefined) {
         break;
       }
@@ -211,29 +207,25 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   const dataHuffmanTables = generateHuffmanTable(dataCodelenValues);
   const distanceHuffmanTables = generateHuffmanTable(distanceCodelenValues);
 
-  const dataCodelens = dataHuffmanTables.keys();
-  let dataCodelensIteratorResult = dataCodelens.next();
+  const dataCodelens = Object.keys(dataHuffmanTables);
   let dataCodelen = 0;
   let dataCodelenMax = 0;
   let dataCodelenMin = Number.MAX_SAFE_INTEGER;
-  while (!dataCodelensIteratorResult.done) {
-    dataCodelen = dataCodelensIteratorResult.value;
+  dataCodelens.forEach((key) => {
+    dataCodelen = Number(key);
     if (dataCodelenMax < dataCodelen) { dataCodelenMax = dataCodelen; }
     if (dataCodelenMin > dataCodelen) { dataCodelenMin = dataCodelen; }
-    dataCodelensIteratorResult = dataCodelens.next();
-  }
+  });
 
-  const distanceCodelens = distanceHuffmanTables.keys();
-  let distanceCodelensIteratorResult = distanceCodelens.next();
+  const distanceCodelens = Object.keys(distanceHuffmanTables);
   let distanceCodelen = 0;
   let distanceCodelenMax = 0;
   let distanceCodelenMin = Number.MAX_SAFE_INTEGER;
-  while (!distanceCodelensIteratorResult.done) {
-    distanceCodelen = distanceCodelensIteratorResult.value;
+  distanceCodelens.forEach((key) => {
+    distanceCodelen = Number(key);
     if (distanceCodelenMax < distanceCodelen) { distanceCodelenMax = distanceCodelen; }
     if (distanceCodelenMin > distanceCodelen) { distanceCodelenMin = distanceCodelen; }
-    distanceCodelensIteratorResult = distanceCodelens.next();
-  }
+  });
 
   let dataCode = 0;
   let dataHuffmanTable;
@@ -253,10 +245,10 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
     dataCodelen = dataCodelenMin;
     dataCode = stream.readRangeCoded(dataCodelenMin - 1);
     while (dataCodelen <= dataCodelenMax) {
-      dataHuffmanTable = dataHuffmanTables.get(dataCodelen) as Map<number, number>;
+      dataHuffmanTable = dataHuffmanTables[dataCodelen];
       dataCode <<= 1;
       dataCode |= stream.read();
-      data = dataHuffmanTable.get(dataCode);
+      data = dataHuffmanTable[dataCode];
       if (data !== undefined) {
         break;
       }
@@ -283,10 +275,10 @@ function inflateDynamicBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
     repeatDistanceCodeCodelen = distanceCodelenMin;
     repeatDistanceCodeCode = stream.readRangeCoded(distanceCodelenMin - 1);
     while (repeatDistanceCodeCodelen <= distanceCodelenMax) {
-      distanceHuffmanTable = distanceHuffmanTables.get(repeatDistanceCodeCodelen) as Map<number, number>;
+      distanceHuffmanTable = distanceHuffmanTables[repeatDistanceCodeCodelen];
       repeatDistanceCodeCode <<= 1;
       repeatDistanceCodeCode |= stream.read();
-      repeatDistanceCode = distanceHuffmanTable.get(repeatDistanceCodeCode);
+      repeatDistanceCode = distanceHuffmanTable[repeatDistanceCodeCode];
       if (repeatDistanceCode !== undefined) {
         break;
       }

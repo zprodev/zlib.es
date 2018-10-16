@@ -1,4 +1,4 @@
-export function generateHuffmanTable(codelenValues: Map<number, number[]>): Map<number, Map<number, number>> {
+export function generateHuffmanTable(codelenValues: Map<number, number[]>): {[key: number]: {[key: number]: number}} {
   const codelens = codelenValues.keys();
   let iteratorResult = codelens.next();
   let codelen = 0;
@@ -13,7 +13,7 @@ export function generateHuffmanTable(codelenValues: Map<number, number[]>): Map<
 
   let code = 0;
   let values: number[];
-  const bitlenTables = new Map();
+  const bitlenTables: {[key: number]: {[key: number]: number}} = {};
   for (let bitlen = codelenMin; bitlen <= codelenMax; bitlen++) {
     values = codelenValues.get(bitlen) as number[];
     if (values === undefined) { values = []; }
@@ -22,12 +22,12 @@ export function generateHuffmanTable(codelenValues: Map<number, number[]>): Map<
       if ( a > b ) { return 1; }
       return 0;
     });
-    const table = new Map();
+    const table: {[key: number]: number} = {};
     values.forEach((value) => {
-      table.set(code, value);
+      table[code] = value;
       code++;
     });
-    bitlenTables.set(bitlen, table);
+    bitlenTables[bitlen] = table;
     code <<= 1;
   }
   return bitlenTables;
