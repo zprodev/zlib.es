@@ -3,12 +3,27 @@ import {
   LENGTH_EXTRA_BIT_BASE,
 } from './const';
 
-export function generateLZ77CodeValues(input: Uint8Array) {
+export const REPEAT_LEN_MIN = 3;
+
+export function generateLZ77IndexMap(input: Uint8Array) {
+  const end = input.length - REPEAT_LEN_MIN;
+  const indexMap: {[key: number]: number[]} = {};
+  for (let i = 0; i <= end; i++) {
+    const indexKey = input[i] << 16 | input[i + 1] << 8 | input[i + 2];
+    if (indexMap[indexKey] === undefined) {
+      indexMap[indexKey] = [];
+    }
+    indexMap[indexKey].push(i);
+  }
+  return indexMap;
+}
+
+export function generateLZ77CodeValues(input: Uint8Array, indexMap: {[key: number]: number[]}) {
   const lengthCodeValues: number[] = [256];
   const distanceCodeValues: number[] = [];
   const inputLen = input.length;
   let slideIndexBase = 0;
-  let slideIndex = 0;
+  const slideIndex = 0;
   let nowIndex = 0;
   let repeatLength = 0;
   let repeatLengthMax = 0;
@@ -21,23 +36,31 @@ export function generateLZ77CodeValues(input: Uint8Array) {
 
   while (nowIndex < inputLen) {
     slideIndexBase = (nowIndex > 0x8000) ? nowIndex - 0x8000 : 0 ;
-    slideIndex = 0;
     repeatLength = 0;
     repeatLengthMax = 0;
-    while (slideIndexBase + slideIndex < nowIndex) {
-      repeatLength = 0;
-      while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
-        repeatLength++;
-        if (257 < repeatLength) {
-          break;
+
+    const indexes = indexMap[
+      input[nowIndex] << 16 | input[nowIndex + 1] << 8 | input[nowIndex + 2]
+    ];
+    if (indexes === undefined) {
+      lengthCodeValues.push(input[nowIndex]);
+      nowIndex++;
+      continue;
+    }
+    indexes.forEach((hidIndex) => {
+      if (slideIndexBase <= hidIndex && hidIndex < nowIndex ) {
+        while (input[hidIndex + repeatLength] === input[nowIndex + repeatLength]) {
+          repeatLength++;
+          if (257 < repeatLength) {
+            break;
+          }
+        }
+        if (repeatLengthMax < repeatLength) {
+          repeatLengthMax = repeatLength;
+          repeatLengthMaxIndex = hidIndex;
         }
       }
-      if (repeatLengthMax < repeatLength) {
-        repeatLengthMax = repeatLength;
-        repeatLengthMaxIndex = slideIndexBase + slideIndex;
-      }
-      slideIndex++;
-    }
+    });
     if (repeatLengthMax >= 3) {
       distance = nowIndex - repeatLengthMaxIndex;
       for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
