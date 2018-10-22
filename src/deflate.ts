@@ -8,7 +8,7 @@ import {
   LENGTH_EXTRA_BIT_LEN,
 } from './const';
 import {generateDeflateHuffmanTable} from './huffman';
-import {generateLZ77CodeValues} from './lz77';
+import {generateLZ77CodeValues, generateLZ77IndexMap} from './lz77';
 import {BitWriteStream} from './utils/BitWriteStream';
 
 export function deflate(input: Uint8Array) {
@@ -40,7 +40,8 @@ function deflateUncompressedBlock(stream: BitWriteStream, input: Uint8Array, inp
 
 function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
   const inputLen = input.length;
-  const lz77CodeValuesObj = generateLZ77CodeValues(input);
+  const lz77IndexMap = generateLZ77IndexMap(input);
+  const lz77CodeValuesObj = generateLZ77CodeValues(input, lz77IndexMap);
   const dataHuffmanTables = generateDeflateHuffmanTable(lz77CodeValuesObj.lengthCodeValues);
   const distanceHuffmanTables = generateDeflateHuffmanTable(lz77CodeValuesObj.distanceCodeValues);
 
@@ -147,7 +148,6 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
     }
   });
   let slideIndexBase = 0;
-  let slideIndex = 0;
   let nowIndex = 0;
   repeatLength = 0;
   let repeatLengthMax = 0;
@@ -158,23 +158,35 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
 
   while (nowIndex < inputLen) {
     slideIndexBase = (nowIndex > 0x8000) ? nowIndex - 0x8000 : 0 ;
-    slideIndex = 0;
     repeatLength = 0;
     repeatLengthMax = 0;
-    while (slideIndexBase + slideIndex < nowIndex) {
-      repeatLength = 0;
-      while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
-        repeatLength++;
-        if (257 < repeatLength) {
-          break;
+    const indexes = lz77IndexMap[
+      input[nowIndex] << 16 | input[nowIndex + 1] << 8 | input[nowIndex + 2]
+    ];
+    if (indexes === undefined) {
+      codelenTableObj = dataHuffmanTables.get(input[nowIndex]);
+      if (codelenTableObj === undefined) {
+        throw new Error('Data is corrupted');
+      }
+      stream.writeRangeCoded(codelenTableObj.code, codelenTableObj.bitlen);
+      nowIndex++;
+      continue;
+    }
+    indexes.forEach((hidIndex) => {
+      if (slideIndexBase <= hidIndex && hidIndex < nowIndex ) {
+        repeatLength = 0;
+        while (input[hidIndex + repeatLength] === input[nowIndex + repeatLength]) {
+          repeatLength++;
+          if (257 < repeatLength) {
+            break;
+          }
+        }
+        if (repeatLengthMax < repeatLength) {
+          repeatLengthMax = repeatLength;
+          repeatLengthMaxIndex = hidIndex;
         }
       }
-      if (repeatLengthMax < repeatLength) {
-        repeatLengthMax = repeatLength;
-        repeatLengthMaxIndex = slideIndexBase + slideIndex;
-      }
-      slideIndex++;
-    }
+    });
     if (repeatLengthMax >= 3) {
       distance = nowIndex - repeatLengthMaxIndex;
       for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
