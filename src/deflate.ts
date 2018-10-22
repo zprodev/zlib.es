@@ -148,7 +148,6 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
     }
   });
   let slideIndexBase = 0;
-  const slideIndex = 0;
   let nowIndex = 0;
   repeatLength = 0;
   let repeatLengthMax = 0;
@@ -173,9 +172,9 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
       nowIndex++;
       continue;
     }
-    indexes.forEach((hidIndex) => {
-      if (slideIndexBase <= hidIndex && hidIndex < nowIndex ) {
-        while (input[hidIndex + repeatLength] === input[nowIndex + repeatLength]) {
+    for (let i = 0, imax = indexes.length; i < imax; i++) {
+      if (slideIndexBase <= indexes[i] && indexes[i] < nowIndex ) {
+        while (input[indexes[i] + repeatLength] === input[nowIndex + repeatLength]) {
           repeatLength++;
           if (257 < repeatLength) {
             break;
@@ -183,10 +182,10 @@ function deflateDynamicBlock(stream: BitWriteStream, input: Uint8Array) {
         }
         if (repeatLengthMax < repeatLength) {
           repeatLengthMax = repeatLength;
-          repeatLengthMaxIndex = hidIndex;
+          repeatLengthMaxIndex = indexes[i];
         }
       }
-    });
+    }
     if (repeatLengthMax >= 3) {
       distance = nowIndex - repeatLengthMaxIndex;
       for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
