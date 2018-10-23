@@ -261,8 +261,8 @@ function generateLZ77Codes(input) {
             repeatLength = repeatLengthMax;
             while (input[index + repeatLength] === input[nowIndex + repeatLength]) {
                 repeatLength++;
-                if (257 <= repeatLength) {
-                    repeatLength = 257;
+                if (257 < repeatLength) {
+                    repeatLength = 258;
                     break;
                 }
             }
