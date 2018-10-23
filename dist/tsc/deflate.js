@@ -1,6 +1,6 @@
 import { BLOCK_MAX_BUFFER_LEN, BTYPE, CODELEN_VALUES, DISTANCE_EXTRA_BIT_BASE, DISTANCE_EXTRA_BIT_LEN, LENGTH_EXTRA_BIT_BASE, LENGTH_EXTRA_BIT_LEN, } from './const';
 import { generateDeflateHuffmanTable } from './huffman';
-import { generateLZ77CodeValues } from './lz77';
+import { generateLZ77Codes } from './lz77';
 import { BitWriteStream } from './utils/BitWriteStream';
 export function deflate(input) {
     const streamHeap = (input.length < BLOCK_MAX_BUFFER_LEN / 2) ? BLOCK_MAX_BUFFER_LEN : input.length * 2;
@@ -28,12 +28,31 @@ function deflateUncompressedBlock(stream, input, inputIndex) {
     return inputIndex;
 }
 function deflateDynamicBlock(stream, input) {
-    const inputLen = input.length;
-    const lz77CodeValuesObj = generateLZ77CodeValues(input);
-    const dataHuffmanTables = generateDeflateHuffmanTable(lz77CodeValuesObj.lengthCodeValues);
-    const distanceHuffmanTables = generateDeflateHuffmanTable(lz77CodeValuesObj.distanceCodeValues);
+    const lz77Codes = generateLZ77Codes(input);
+    const clCodeValues = [256]; // character or matching length
+    const distanceCodeValues = [];
+    let clCodeValueMax = 256;
+    let distanceCodeValueMax = 0;
+    for (let i = 0, iMax = lz77Codes.length; i < iMax; i++) {
+        const values = lz77Codes[i];
+        let cl = values[0];
+        const distance = values[1];
+        if (distance !== undefined) {
+            cl += 257;
+            distanceCodeValues.push(distance);
+            if (distanceCodeValueMax < distance) {
+                distanceCodeValueMax = distance;
+            }
+        }
+        clCodeValues.push(cl);
+        if (clCodeValueMax < cl) {
+            clCodeValueMax = cl;
+        }
+    }
+    const dataHuffmanTables = generateDeflateHuffmanTable(clCodeValues);
+    const distanceHuffmanTables = generateDeflateHuffmanTable(distanceCodeValues);
     const codelens = [];
-    for (let i = 0; i <= lz77CodeValuesObj.repeatLengthCodeValueMax; i++) {
+    for (let i = 0; i <= clCodeValueMax; i++) {
         if (dataHuffmanTables.has(i)) {
             codelens.push(dataHuffmanTables.get(i).bitlen);
         }
@@ -42,7 +61,7 @@ function deflateDynamicBlock(stream, input) {
         }
     }
     const HLIT = codelens.length;
-    for (let i = 0; i <= lz77CodeValuesObj.repeatDistanceCodeValueMax; i++) {
+    for (let i = 0; i <= distanceCodeValueMax; i++) {
         if (distanceHuffmanTables.has(i)) {
             codelens.push(distanceHuffmanTables.get(i).bitlen);
         }
@@ -51,7 +70,6 @@ function deflateDynamicBlock(stream, input) {
         }
     }
     const HDIST = codelens.length - HLIT;
-    // ランレングス符号化
     const runLengthCodes = [];
     const runLengthRepeatCount = [];
     let codelen = 0;
@@ -139,73 +157,36 @@ function deflateDynamicBlock(stream, input) {
             stream.writeRange(runLengthRepeatCount[index] - 3, 2);
         }
     });
-    let slideIndexBase = 0;
-    let slideIndex = 0;
-    let nowIndex = 0;
-    repeatLength = 0;
-    let repeatLengthMax = 0;
-    let repeatLengthMaxIndex = 0;
-    let distance = 0;
-    let repeatLengthCodeValue = 0;
-    let repeatDistanceCodeValue = 0;
-    while (nowIndex < inputLen) {
-        slideIndexBase = (nowIndex > 0x8000) ? nowIndex - 0x8000 : 0;
-        slideIndex = 0;
-        repeatLength = 0;
-        repeatLengthMax = 0;
-        while (slideIndexBase + slideIndex < nowIndex) {
-            repeatLength = 0;
-            while (input[slideIndexBase + slideIndex + repeatLength] === input[nowIndex + repeatLength]) {
-                repeatLength++;
-                if (257 < repeatLength) {
-                    break;
-                }
-            }
-            if (repeatLengthMax < repeatLength) {
-                repeatLengthMax = repeatLength;
-                repeatLengthMaxIndex = slideIndexBase + slideIndex;
-            }
-            slideIndex++;
-        }
-        if (repeatLengthMax >= 3) {
-            distance = nowIndex - repeatLengthMaxIndex;
-            for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
-                if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
-                    break;
-                }
-                repeatLengthCodeValue = i;
-            }
-            codelenTableObj = dataHuffmanTables.get(repeatLengthCodeValue + 257);
+    for (let i = 0, iMax = lz77Codes.length; i < iMax; i++) {
+        const values = lz77Codes[i];
+        const clCodeValue = values[0];
+        const distanceCodeValue = values[1];
+        if (distanceCodeValue !== undefined) {
+            codelenTableObj = dataHuffmanTables.get(clCodeValue + 257);
             if (codelenTableObj === undefined) {
                 throw new Error('Data is corrupted');
             }
             stream.writeRangeCoded(codelenTableObj.code, codelenTableObj.bitlen);
-            if (0 < LENGTH_EXTRA_BIT_LEN[repeatLengthCodeValue]) {
-                stream.writeRange(repeatLengthMax - LENGTH_EXTRA_BIT_BASE[repeatLengthCodeValue], LENGTH_EXTRA_BIT_LEN[repeatLengthCodeValue]);
+            if (0 < LENGTH_EXTRA_BIT_LEN[clCodeValue]) {
+                repeatLength = values[2];
+                stream.writeRange(repeatLength - LENGTH_EXTRA_BIT_BASE[clCodeValue], LENGTH_EXTRA_BIT_LEN[clCodeValue]);
             }
-            for (let i = 0; i < DISTANCE_EXTRA_BIT_BASE.length; i++) {
-                if (DISTANCE_EXTRA_BIT_BASE[i] > distance) {
-                    break;
-                }
-                repeatDistanceCodeValue = i;
-            }
-            const distanceTableObj = distanceHuffmanTables.get(repeatDistanceCodeValue);
+            const distanceTableObj = distanceHuffmanTables.get(distanceCodeValue);
             if (distanceTableObj === undefined) {
                 throw new Error('Data is corrupted');
             }
             stream.writeRangeCoded(distanceTableObj.code, distanceTableObj.bitlen);
-            if (0 < DISTANCE_EXTRA_BIT_LEN[repeatDistanceCodeValue]) {
-                stream.writeRange(distance - DISTANCE_EXTRA_BIT_BASE[repeatDistanceCodeValue], DISTANCE_EXTRA_BIT_LEN[repeatDistanceCodeValue]);
+            if (0 < DISTANCE_EXTRA_BIT_LEN[distanceCodeValue]) {
+                const distance = values[3];
+                stream.writeRange(distance - DISTANCE_EXTRA_BIT_BASE[distanceCodeValue], DISTANCE_EXTRA_BIT_LEN[distanceCodeValue]);
             }
-            nowIndex += repeatLengthMax;
         }
         else {
-            codelenTableObj = dataHuffmanTables.get(input[nowIndex]);
+            codelenTableObj = dataHuffmanTables.get(clCodeValue);
             if (codelenTableObj === undefined) {
                 throw new Error('Data is corrupted');
             }
             stream.writeRangeCoded(codelenTableObj.code, codelenTableObj.bitlen);
-            nowIndex++;
         }
     }
     codelenTableObj = dataHuffmanTables.get(256);
