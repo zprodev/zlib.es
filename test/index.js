@@ -43,40 +43,68 @@ describe('inflate', function() {
 });
 
 describe('deflate', function() {
-  describe('RAW', function() {
-    const deflateOutput = zlibes.deflate(RAW);
-    it('zlib.es', function() {
-      assert.deepEqual(
-        RAW,
-        zlibes.inflate(deflateOutput)
-      );
+  describe('Execution', function() {
+    it('RAW', function() {
+      zlibes.deflate(RAW);
+      assert.ok(true);
     });
-    it('Node.js zlib', function() {
-      assert.deepEqual(
-        RAW,
-        nodeZlib.inflateSync(deflateOutput)
-      );
+    it('binary data', function() {
+      zlibes.deflate(RAW_BIN);
+      assert.ok(true);
     });
   });
-  describe('Repeat Length Limit', function() {
-    const ascii = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
-    let asciiRepeat = '';
-    while(asciiRepeat.length < 1000){
-      asciiRepeat += ascii;
-    }
-    const deflateInput = new Uint8Array(new Buffer(asciiRepeat));
-    const deflateOutput = zlibes.deflate(deflateInput);
-    it('zlib.es', function() {
-      assert.deepEqual(
-        deflateInput,
-        zlibes.inflate(deflateOutput)
-      );
+  describe('Validation', function() {
+    describe('RAW', function() {
+      const deflateOutput = zlibes.deflate(RAW);
+      it('zlib.es', function() {
+        assert.deepEqual(
+          RAW,
+          zlibes.inflate(deflateOutput)
+        );
+      });
+      it('Node.js', function() {
+        assert.deepEqual(
+          RAW,
+          nodeZlib.inflateSync(deflateOutput)
+        );
+      });
     });
-    it('Node.js zlib', function() {
-      assert.deepEqual(
-        deflateInput,
-        nodeZlib.inflateSync(deflateOutput)
-      );
+    describe('binary data', function() {
+      const deflateOutput = zlibes.deflate(RAW_BIN);
+      it('zlib.es', function() {
+        assert.deepEqual(
+          RAW_BIN,
+          zlibes.inflate(deflateOutput)
+        );
+      });
+      it('Node.js', function() {
+        assert.deepEqual(
+          RAW_BIN,
+          nodeZlib.inflateSync(deflateOutput)
+        );
+      });
+    });
+  
+    describe('Repeat Length Limit', function() {
+      const ascii = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
+      let asciiRepeat = '';
+      while(asciiRepeat.length < 1000){
+        asciiRepeat += ascii;
+      }
+      const deflateInput = new Uint8Array(new Buffer(asciiRepeat));
+      const deflateOutput = zlibes.deflate(deflateInput);
+      it('zlib.es', function() {
+        assert.deepEqual(
+          deflateInput,
+          zlibes.inflate(deflateOutput)
+        );
+      });
+      it('Node.js', function() {
+        assert.deepEqual(
+          deflateInput,
+          nodeZlib.inflateSync(deflateOutput)
+        );
+      });
     });
   });
 });
