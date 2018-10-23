@@ -1,6 +1,6 @@
 {
   "name": "zlib.es",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "ECMAScript compliant lightweight zlib implementation",
   "main": "dist/cjs/zlib.js",
   "module": "dist/esm/zlib.mjs",
