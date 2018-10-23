@@ -5,7 +5,7 @@ import {
 
 export const REPEAT_LEN_MIN = 3;
 
-export function generateLZ77IndexMap(input: Uint8Array) {
+function generateLZ77IndexMap(input: Uint8Array) {
   const end = input.length - REPEAT_LEN_MIN;
   const indexMap: {[key: number]: number[]} = {};
   for (let i = 0; i <= end; i++) {
@@ -18,48 +18,57 @@ export function generateLZ77IndexMap(input: Uint8Array) {
   return indexMap;
 }
 
-export function generateLZ77CodeValues(input: Uint8Array, indexMap: {[key: number]: number[]}) {
-  const lengthCodeValues: number[] = [256];
-  const distanceCodeValues: number[] = [];
+export function generateLZ77Codes(input: Uint8Array) {
   const inputLen = input.length;
-  let slideIndexBase = 0;
   let nowIndex = 0;
+  let slideIndexBase = 0;
   let repeatLength = 0;
   let repeatLengthMax = 0;
   let repeatLengthMaxIndex = 0;
   let distance = 0;
   let repeatLengthCodeValue = 0;
   let repeatDistanceCodeValue = 0;
-  let repeatLengthCodeValueMax = 256;
-  let repeatDistanceCodeValueMax = 0;
-
+  const codeTargetValues = [];
+  const skipIndexMap: {[key: number]: number} = {};
+  const indexMap = generateLZ77IndexMap(input);
   while (nowIndex < inputLen) {
-    slideIndexBase = (nowIndex > 0x8000) ? nowIndex - 0x8000 : 0 ;
-    repeatLength = 0;
-    repeatLengthMax = 0;
-
+    const indexKey = input[nowIndex] << 16 | input[nowIndex + 1] << 8 | input[nowIndex + 2];
     const indexes = indexMap[
-      input[nowIndex] << 16 | input[nowIndex + 1] << 8 | input[nowIndex + 2]
+      indexKey
     ];
-    if (indexes === undefined) {
-      lengthCodeValues.push(input[nowIndex]);
+    if (indexes === undefined || indexes.length <= 1) {
+      codeTargetValues.push([input[nowIndex]]);
       nowIndex++;
       continue;
     }
-
-    for (let i = 0, iMax = indexes.length; i < iMax; i++) {
-      if (slideIndexBase <= indexes[i] && indexes[i] < nowIndex ) {
-        repeatLength = 0;
-        while (input[indexes[i] + repeatLength] === input[nowIndex + repeatLength]) {
-          repeatLength++;
-          if (257 < repeatLength) {
-            break;
-          }
+    slideIndexBase = (nowIndex > 0x8000) ? nowIndex - 0x8000 : 0 ;
+    repeatLengthMax = 0;
+    repeatLengthMaxIndex = 0;
+    indexMapLoop: for (let i = skipIndexMap[indexKey] || 0, iMax = indexes.length; i < iMax; i++) {
+      const index = indexes[i];
+      if (nowIndex <= index) {
+        break;
+      }
+      if (index < slideIndexBase) {
+        skipIndexMap[indexKey] = i + 1;
+        continue;
+      }
+      for (let j = repeatLengthMax - 1; 0 < j; j--) {
+        if (input[index + j] !== input[nowIndex + j]) {
+          continue indexMapLoop;
         }
-        if (repeatLengthMax < repeatLength) {
-          repeatLengthMax = repeatLength;
-          repeatLengthMaxIndex = indexes[i];
+      }
+      repeatLength = repeatLengthMax;
+      while (input[index + repeatLength] === input[nowIndex + repeatLength]) {
+        repeatLength++;
+        if (257 <= repeatLength) {
+          repeatLength = 257;
+          break;
         }
+      }
+      if (repeatLengthMax <= repeatLength) {
+        repeatLengthMax = repeatLength;
+        repeatLengthMaxIndex = index;
       }
     }
     if (repeatLengthMax >= 3) {
@@ -70,34 +79,18 @@ export function generateLZ77CodeValues(input: Uint8Array, indexMap: {[key: numbe
         }
         repeatLengthCodeValue = i;
       }
-      repeatLengthCodeValue += 257;
-      lengthCodeValues.push(repeatLengthCodeValue);
-      if (repeatLengthCodeValueMax < repeatLengthCodeValue) {
-        repeatLengthCodeValueMax = repeatLengthCodeValue;
-      }
-
       for (let i = 0; i < DISTANCE_EXTRA_BIT_BASE.length; i++) {
         if (DISTANCE_EXTRA_BIT_BASE[i] > distance) {
           break;
         }
         repeatDistanceCodeValue = i;
       }
-      distanceCodeValues.push(repeatDistanceCodeValue);
-      if (repeatDistanceCodeValueMax < repeatDistanceCodeValue) {
-        repeatDistanceCodeValueMax = repeatDistanceCodeValue;
-      }
-
+      codeTargetValues.push([repeatLengthCodeValue, repeatDistanceCodeValue, repeatLengthMax, distance]);
       nowIndex += repeatLengthMax;
     } else {
-      lengthCodeValues.push(input[nowIndex]);
+      codeTargetValues.push([input[nowIndex]]);
       nowIndex++;
     }
   }
-
-  return {
-    repeatLengthCodeValueMax,
-    repeatDistanceCodeValueMax,
-    lengthCodeValues,
-    distanceCodeValues,
-  };
+  return codeTargetValues;
 }
