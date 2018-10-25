@@ -47,12 +47,12 @@ export function generateLZ77Codes(input: Uint8Array) {
     repeatLengthMaxIndex = 0;
 
     let skipindexes = startIndexMap[indexKey] || 0;
-    while(indexes[skipindexes] < slideIndexBase){
+    while (indexes[skipindexes] < slideIndexBase) {
       skipindexes = (skipindexes + 1) | 0;
     }
     startIndexMap[indexKey] = skipindexes;
     skipindexes = endIndexMap[indexKey] || 0;
-    while(indexes[skipindexes] < nowIndex){
+    while (indexes[skipindexes] < nowIndex) {
       skipindexes = (skipindexes + 1) | 0;
     }
     endIndexMap[indexKey] = skipindexes;
@@ -76,7 +76,7 @@ export function generateLZ77Codes(input: Uint8Array) {
       if (repeatLengthMax < repeatLength) {
         repeatLengthMax = repeatLength;
         repeatLengthMaxIndex = index;
-        if(258 <= repeatLength){
+        if (258 <= repeatLength) {
           break;
         }
       }

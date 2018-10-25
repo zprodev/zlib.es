@@ -227,7 +227,8 @@ function generateLZ77Codes(input) {
     let repeatLengthCodeValue = 0;
     let repeatDistanceCodeValue = 0;
     const codeTargetValues = [];
-    const skipIndexMap = {};
+    const startIndexMap = {};
+    const endIndexMap = {};
     const indexMap = generateLZ77IndexMap(input);
     while (nowIndex < inputLen) {
         const indexKey = input[nowIndex] << 16 | input[nowIndex + 1] << 8 | input[nowIndex + 2];
@@ -240,31 +241,36 @@ function generateLZ77Codes(input) {
         slideIndexBase = (nowIndex > 0x8000) ? nowIndex - 0x8000 : 0;
         repeatLengthMax = 0;
         repeatLengthMaxIndex = 0;
-        indexMapLoop: for (let i = skipIndexMap[indexKey] || 0, iMax = indexes.length; i < iMax; i++) {
+        let skipindexes = startIndexMap[indexKey] || 0;
+        while (indexes[skipindexes] < slideIndexBase) {
+            skipindexes = (skipindexes + 1) | 0;
+        }
+        startIndexMap[indexKey] = skipindexes;
+        skipindexes = endIndexMap[indexKey] || 0;
+        while (indexes[skipindexes] < nowIndex) {
+            skipindexes = (skipindexes + 1) | 0;
+        }
+        endIndexMap[indexKey] = skipindexes;
+        indexMapLoop: for (let i = endIndexMap[indexKey] - 1, iMin = startIndexMap[indexKey]; iMin <= i; i--) {
             const index = indexes[i];
-            if (nowIndex <= index) {
-                break;
-            }
-            if (index < slideIndexBase) {
-                skipIndexMap[indexKey] = i + 1;
-                continue;
-            }
             for (let j = repeatLengthMax - 1; 0 < j; j--) {
                 if (input[index + j] !== input[nowIndex + j]) {
                     continue indexMapLoop;
                 }
             }
-            repeatLength = repeatLengthMax;
-            while (input[index + repeatLength] === input[nowIndex + repeatLength]) {
-                repeatLength++;
-                if (257 < repeatLength) {
-                    repeatLength = 258;
+            repeatLength = 258;
+            for (let j = repeatLengthMax; j <= 258; j++) {
+                if (input[index + j] !== input[nowIndex + j]) {
+                    repeatLength = j;
                     break;
                 }
             }
-            if (repeatLengthMax <= repeatLength) {
+            if (repeatLengthMax < repeatLength) {
                 repeatLengthMax = repeatLength;
                 repeatLengthMaxIndex = index;
+                if (258 <= repeatLength) {
+                    break;
+                }
             }
         }
         if (repeatLengthMax >= 3) {
