@@ -41,8 +41,8 @@ export function inflate(input: Uint8Array, offset: number = 0) {
 
 function inflateUncompressedBlock(stream: BitReadStream, buffer: Uint8WriteStream) {
   // Skip to byte boundary
-  if (stream.nowBitsIndex > 0) {
-    stream.readRange(8 - stream.nowBitsIndex);
+  if (stream.nowBitsLength < 8) {
+    stream.readRange(stream.nowBitsLength);
   }
   const LEN = stream.readRange(8) | stream.readRange(8) << 8;
   const NLEN = stream.readRange(8) | stream.readRange(8) << 8;
