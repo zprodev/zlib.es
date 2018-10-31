@@ -3,7 +3,10 @@ import {
   LENGTH_EXTRA_BIT_BASE,
 } from './const';
 
-export const REPEAT_LEN_MIN = 3;
+const REPEAT_LEN_MIN = 3;
+const FAST_INDEX_CHECK_MAX = 128;
+const FAST_INDEX_CHECK_MIN = 16;
+const FAST_REPEAT_LENGTH = 8;
 
 function generateLZ77IndexMap(input: Uint8Array) {
   const end = input.length - REPEAT_LEN_MIN;
@@ -57,7 +60,13 @@ export function generateLZ77Codes(input: Uint8Array) {
     }
     endIndexMap[indexKey] = skipindexes;
 
+    let checkCount = 0;
     indexMapLoop: for (let i = endIndexMap[indexKey] - 1, iMin = startIndexMap[indexKey]; iMin <= i; i--) {
+      if (checkCount >= FAST_INDEX_CHECK_MAX
+        || (repeatLengthMax >= FAST_REPEAT_LENGTH && checkCount >= FAST_INDEX_CHECK_MIN)) {
+        break;
+      }
+      ++checkCount;
       const index = indexes[i];
       for (let j = repeatLengthMax - 1; 0 < j; j--) {
         if (input[index + j] !== input[nowIndex + j]) {
