@@ -52,7 +52,7 @@ export function makeFixedHuffmanCodelenValues() {
     }
     return codelenValues;
 }
-export function generateDeflateHuffmanTable(values) {
+export function generateDeflateHuffmanTable(values, maxLength = 15) {
     const valuesCount = {};
     for (const value of values) {
         if (!valuesCount[value]) {
@@ -73,7 +73,7 @@ export function generateDeflateHuffmanTable(values) {
         });
     }
     else {
-        for (let i = 0; i < 15; i++) {
+        for (let i = 0; i < maxLength; i++) {
             packages = [];
             valuesCountKeys.forEach((value) => {
                 const pack = {

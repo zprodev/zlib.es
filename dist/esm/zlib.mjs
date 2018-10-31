@@ -94,7 +94,7 @@ function makeFixedHuffmanCodelenValues() {
     }
     return codelenValues;
 }
-function generateDeflateHuffmanTable(values) {
+function generateDeflateHuffmanTable(values, maxLength = 15) {
     const valuesCount = {};
     for (const value of values) {
         if (!valuesCount[value]) {
@@ -115,7 +115,7 @@ function generateDeflateHuffmanTable(values) {
         });
     }
     else {
-        for (let i = 0; i < 15; i++) {
+        for (let i = 0; i < maxLength; i++) {
             packages = [];
             valuesCountKeys.forEach((value) => {
                 const pack = {
@@ -204,10 +204,13 @@ function generateDeflateHuffmanTable(values) {
 }
 
 const REPEAT_LEN_MIN = 3;
-function generateLZ77IndexMap(input) {
-    const end = input.length - REPEAT_LEN_MIN;
+const FAST_INDEX_CHECK_MAX = 128;
+const FAST_INDEX_CHECK_MIN = 16;
+const FAST_REPEAT_LENGTH = 8;
+function generateLZ77IndexMap(input, startIndex, targetLength) {
+    const end = startIndex + targetLength - REPEAT_LEN_MIN;
     const indexMap = {};
-    for (let i = 0; i <= end; i++) {
+    for (let i = startIndex; i <= end; i++) {
         const indexKey = input[i] << 16 | input[i + 1] << 8 | input[i + 2];
         if (indexMap[indexKey] === undefined) {
             indexMap[indexKey] = [];
@@ -216,9 +219,9 @@ function generateLZ77IndexMap(input) {
     }
     return indexMap;
 }
-function generateLZ77Codes(input) {
-    const inputLen = input.length;
-    let nowIndex = 0;
+function generateLZ77Codes(input, startIndex, targetLength) {
+    let nowIndex = startIndex;
+    const endIndex = startIndex + targetLength - REPEAT_LEN_MIN;
     let slideIndexBase = 0;
     let repeatLength = 0;
     let repeatLengthMax = 0;
@@ -229,8 +232,8 @@ function generateLZ77Codes(input) {
     const codeTargetValues = [];
     const startIndexMap = {};
     const endIndexMap = {};
-    const indexMap = generateLZ77IndexMap(input);
-    while (nowIndex < inputLen) {
+    const indexMap = generateLZ77IndexMap(input, startIndex, targetLength);
+    while (nowIndex <= endIndex) {
         const indexKey = input[nowIndex] << 16 | input[nowIndex + 1] << 8 | input[nowIndex + 2];
         const indexes = indexMap[indexKey];
         if (indexes === undefined || indexes.length <= 1) {
@@ -251,7 +254,13 @@ function generateLZ77Codes(input) {
             skipindexes = (skipindexes + 1) | 0;
         }
         endIndexMap[indexKey] = skipindexes;
+        let checkCount = 0;
         indexMapLoop: for (let i = endIndexMap[indexKey] - 1, iMin = startIndexMap[indexKey]; iMin <= i; i--) {
+            if (checkCount >= FAST_INDEX_CHECK_MAX
+                || (repeatLengthMax >= FAST_REPEAT_LENGTH && checkCount >= FAST_INDEX_CHECK_MIN)) {
+                break;
+            }
+            checkCount++;
             const index = indexes[i];
             for (let j = repeatLengthMax - 1; 0 < j; j--) {
                 if (input[index + j] !== input[nowIndex + j]) {
@@ -273,7 +282,7 @@ function generateLZ77Codes(input) {
                 }
             }
         }
-        if (repeatLengthMax >= 3) {
+        if (repeatLengthMax >= 3 && nowIndex + repeatLengthMax <= endIndex) {
             distance = nowIndex - repeatLengthMaxIndex;
             for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
                 if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
@@ -295,6 +304,8 @@ function generateLZ77Codes(input) {
             nowIndex++;
         }
     }
+    codeTargetValues.push([input[nowIndex]]);
+    codeTargetValues.push([input[nowIndex + 1]]);
     return codeTargetValues;
 }
 
@@ -345,18 +356,34 @@ class BitWriteStream {
 }
 
 function deflate(input) {
-    const streamHeap = (input.length < BLOCK_MAX_BUFFER_LEN / 2) ? BLOCK_MAX_BUFFER_LEN : input.length * 2;
+    const inputLength = input.length;
+    const streamHeap = (inputLength < BLOCK_MAX_BUFFER_LEN / 2) ? BLOCK_MAX_BUFFER_LEN : inputLength * 2;
     const stream = new BitWriteStream(new Uint8Array(streamHeap));
-    stream.writeRange(1, 1);
-    stream.writeRange(BTYPE.DYNAMIC, 2);
-    deflateDynamicBlock(stream, input);
+    let processedLength = 0;
+    let targetLength = 0;
+    while (true) {
+        if (processedLength + BLOCK_MAX_BUFFER_LEN >= inputLength) {
+            targetLength = inputLength - processedLength;
+            stream.writeRange(1, 1);
+        }
+        else {
+            targetLength = BLOCK_MAX_BUFFER_LEN;
+            stream.writeRange(0, 1);
+        }
+        stream.writeRange(BTYPE.DYNAMIC, 2);
+        deflateDynamicBlock(stream, input, processedLength, targetLength);
+        processedLength += BLOCK_MAX_BUFFER_LEN;
+        if (processedLength >= inputLength) {
+            break;
+        }
+    }
     if (stream.nowBitsIndex !== 0) {
         stream.writeRange(0, 8 - stream.nowBitsIndex);
     }
     return stream.buffer.subarray(0, stream.bufferIndex);
 }
-function deflateDynamicBlock(stream, input) {
-    const lz77Codes = generateLZ77Codes(input);
+function deflateDynamicBlock(stream, input, startIndex, targetLength) {
+    const lz77Codes = generateLZ77Codes(input, startIndex, targetLength);
     const clCodeValues = [256]; // character or matching length
     const distanceCodeValues = [];
     let clCodeValueMax = 256;
@@ -443,7 +470,7 @@ function deflateDynamicBlock(stream, input) {
             }
         }
     }
-    const codelenHuffmanTable = generateDeflateHuffmanTable(runLengthCodes);
+    const codelenHuffmanTable = generateDeflateHuffmanTable(runLengthCodes, 7);
     let HCLEN = 0;
     CODELEN_VALUES.forEach((value, index) => {
         if (codelenHuffmanTable.has(value)) {
@@ -526,38 +553,43 @@ function deflateDynamicBlock(stream, input) {
 
 class BitReadStream {
     constructor(buffer, offset = 0) {
-        this.nowBitsIndex = 0;
+        this.nowBitsLength = 0;
         this.isEnd = false;
         this.buffer = buffer;
         this.bufferIndex = offset;
         this.nowBits = buffer[offset];
+        this.nowBitsLength = 8;
     }
     read() {
         if (this.isEnd) {
             throw new Error('Lack of data length');
         }
         const bit = this.nowBits & 1;
-        if (this.nowBitsIndex < 7) {
-            this.nowBitsIndex++;
+        if (this.nowBitsLength > 1) {
+            this.nowBitsLength--;
             this.nowBits >>= 1;
         }
         else {
             this.bufferIndex++;
-            this.nowBitsIndex = 0;
             if (this.bufferIndex < this.buffer.length) {
                 this.nowBits = this.buffer[this.bufferIndex];
+                this.nowBitsLength = 8;
             }
             else {
+                this.nowBitsLength = 0;
                 this.isEnd = true;
             }
         }
         return bit;
     }
     readRange(length) {
-        let bits = 0;
-        for (let i = 0; i < length; i++) {
-            bits |= this.read() << i;
+        while (this.nowBitsLength <= length) {
+            this.nowBits |= this.buffer[++this.bufferIndex] << this.nowBitsLength;
+            this.nowBitsLength += 8;
         }
+        const bits = this.nowBits & ((1 << length) - 1);
+        this.nowBits >>>= length;
+        this.nowBitsLength -= length;
         return bits;
     }
     readRangeCoded(length) {
@@ -594,7 +626,7 @@ class Uint8WriteStream {
 
 const FIXED_HUFFMAN_TABLE = generateHuffmanTable(makeFixedHuffmanCodelenValues());
 function inflate(input, offset = 0) {
-    const buffer = new Uint8WriteStream(BLOCK_MAX_BUFFER_LEN);
+    const buffer = new Uint8WriteStream(input.length * 10);
     const stream = new BitReadStream(input, offset);
     let bFinal = 0;
     let bType = 0;
@@ -621,8 +653,8 @@ function inflate(input, offset = 0) {
 }
 function inflateUncompressedBlock(stream, buffer) {
     // Skip to byte boundary
-    if (stream.nowBitsIndex > 0) {
-        stream.readRange(8 - stream.nowBitsIndex);
+    if (stream.nowBitsLength < 8) {
+        stream.readRange(stream.nowBitsLength);
     }
     const LEN = stream.readRange(8) | stream.readRange(8) << 8;
     const NLEN = stream.readRange(8) | stream.readRange(8) << 8;

@@ -1,9 +1,12 @@
 import { DISTANCE_EXTRA_BIT_BASE, LENGTH_EXTRA_BIT_BASE, } from './const';
-export const REPEAT_LEN_MIN = 3;
-function generateLZ77IndexMap(input) {
-    const end = input.length - REPEAT_LEN_MIN;
+const REPEAT_LEN_MIN = 3;
+const FAST_INDEX_CHECK_MAX = 128;
+const FAST_INDEX_CHECK_MIN = 16;
+const FAST_REPEAT_LENGTH = 8;
+function generateLZ77IndexMap(input, startIndex, targetLength) {
+    const end = startIndex + targetLength - REPEAT_LEN_MIN;
     const indexMap = {};
-    for (let i = 0; i <= end; i++) {
+    for (let i = startIndex; i <= end; i++) {
         const indexKey = input[i] << 16 | input[i + 1] << 8 | input[i + 2];
         if (indexMap[indexKey] === undefined) {
             indexMap[indexKey] = [];
@@ -12,9 +15,9 @@ function generateLZ77IndexMap(input) {
     }
     return indexMap;
 }
-export function generateLZ77Codes(input) {
-    const inputLen = input.length;
-    let nowIndex = 0;
+export function generateLZ77Codes(input, startIndex, targetLength) {
+    let nowIndex = startIndex;
+    const endIndex = startIndex + targetLength - REPEAT_LEN_MIN;
     let slideIndexBase = 0;
     let repeatLength = 0;
     let repeatLengthMax = 0;
@@ -25,8 +28,8 @@ export function generateLZ77Codes(input) {
     const codeTargetValues = [];
     const startIndexMap = {};
     const endIndexMap = {};
-    const indexMap = generateLZ77IndexMap(input);
-    while (nowIndex < inputLen) {
+    const indexMap = generateLZ77IndexMap(input, startIndex, targetLength);
+    while (nowIndex <= endIndex) {
         const indexKey = input[nowIndex] << 16 | input[nowIndex + 1] << 8 | input[nowIndex + 2];
         const indexes = indexMap[indexKey];
         if (indexes === undefined || indexes.length <= 1) {
@@ -47,7 +50,13 @@ export function generateLZ77Codes(input) {
             skipindexes = (skipindexes + 1) | 0;
         }
         endIndexMap[indexKey] = skipindexes;
+        let checkCount = 0;
         indexMapLoop: for (let i = endIndexMap[indexKey] - 1, iMin = startIndexMap[indexKey]; iMin <= i; i--) {
+            if (checkCount >= FAST_INDEX_CHECK_MAX
+                || (repeatLengthMax >= FAST_REPEAT_LENGTH && checkCount >= FAST_INDEX_CHECK_MIN)) {
+                break;
+            }
+            checkCount++;
             const index = indexes[i];
             for (let j = repeatLengthMax - 1; 0 < j; j--) {
                 if (input[index + j] !== input[nowIndex + j]) {
@@ -69,7 +78,7 @@ export function generateLZ77Codes(input) {
                 }
             }
         }
-        if (repeatLengthMax >= 3) {
+        if (repeatLengthMax >= 3 && nowIndex + repeatLengthMax <= endIndex) {
             distance = nowIndex - repeatLengthMaxIndex;
             for (let i = 0; i < LENGTH_EXTRA_BIT_BASE.length; i++) {
                 if (LENGTH_EXTRA_BIT_BASE[i] > repeatLengthMax) {
@@ -91,5 +100,7 @@ export function generateLZ77Codes(input) {
             nowIndex++;
         }
     }
+    codeTargetValues.push([input[nowIndex]]);
+    codeTargetValues.push([input[nowIndex + 1]]);
     return codeTargetValues;
 }

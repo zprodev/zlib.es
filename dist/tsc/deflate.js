@@ -3,11 +3,27 @@ import { generateDeflateHuffmanTable } from './huffman';
 import { generateLZ77Codes } from './lz77';
 import { BitWriteStream } from './utils/BitWriteStream';
 export function deflate(input) {
-    const streamHeap = (input.length < BLOCK_MAX_BUFFER_LEN / 2) ? BLOCK_MAX_BUFFER_LEN : input.length * 2;
+    const inputLength = input.length;
+    const streamHeap = (inputLength < BLOCK_MAX_BUFFER_LEN / 2) ? BLOCK_MAX_BUFFER_LEN : inputLength * 2;
     const stream = new BitWriteStream(new Uint8Array(streamHeap));
-    stream.writeRange(1, 1);
-    stream.writeRange(BTYPE.DYNAMIC, 2);
-    deflateDynamicBlock(stream, input);
+    let processedLength = 0;
+    let targetLength = 0;
+    while (true) {
+        if (processedLength + BLOCK_MAX_BUFFER_LEN >= inputLength) {
+            targetLength = inputLength - processedLength;
+            stream.writeRange(1, 1);
+        }
+        else {
+            targetLength = BLOCK_MAX_BUFFER_LEN;
+            stream.writeRange(0, 1);
+        }
+        stream.writeRange(BTYPE.DYNAMIC, 2);
+        deflateDynamicBlock(stream, input, processedLength, targetLength);
+        processedLength += BLOCK_MAX_BUFFER_LEN;
+        if (processedLength >= inputLength) {
+            break;
+        }
+    }
     if (stream.nowBitsIndex !== 0) {
         stream.writeRange(0, 8 - stream.nowBitsIndex);
     }
@@ -27,8 +43,8 @@ function deflateUncompressedBlock(stream, input, inputIndex) {
     }
     return inputIndex;
 }
-function deflateDynamicBlock(stream, input) {
-    const lz77Codes = generateLZ77Codes(input);
+function deflateDynamicBlock(stream, input, startIndex, targetLength) {
+    const lz77Codes = generateLZ77Codes(input, startIndex, targetLength);
     const clCodeValues = [256]; // character or matching length
     const distanceCodeValues = [];
     let clCodeValueMax = 256;
@@ -115,7 +131,7 @@ function deflateDynamicBlock(stream, input) {
             }
         }
     }
-    const codelenHuffmanTable = generateDeflateHuffmanTable(runLengthCodes);
+    const codelenHuffmanTable = generateDeflateHuffmanTable(runLengthCodes, 7);
     let HCLEN = 0;
     CODELEN_VALUES.forEach((value, index) => {
         if (codelenHuffmanTable.has(value)) {

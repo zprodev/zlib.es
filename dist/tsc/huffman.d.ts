@@ -8,7 +8,7 @@ export interface IHuffmanTable {
 }
 export declare function generateHuffmanTable(codelenValues: ICodelenValues): IHuffmanTable;
 export declare function makeFixedHuffmanCodelenValues(): ICodelenValues;
-export declare function generateDeflateHuffmanTable(values: number[]): Map<number, {
+export declare function generateDeflateHuffmanTable(values: number[], maxLength?: number): Map<number, {
     code: number;
     bitlen: number;
 }>;

@@ -1,10 +1,10 @@
-import { BLOCK_MAX_BUFFER_LEN, BTYPE, CODELEN_VALUES, DISTANCE_EXTRA_BIT_BASE, DISTANCE_EXTRA_BIT_LEN, LENGTH_EXTRA_BIT_BASE, LENGTH_EXTRA_BIT_LEN, } from './const';
+import { BTYPE, CODELEN_VALUES, DISTANCE_EXTRA_BIT_BASE, DISTANCE_EXTRA_BIT_LEN, LENGTH_EXTRA_BIT_BASE, LENGTH_EXTRA_BIT_LEN, } from './const';
 import { generateHuffmanTable, makeFixedHuffmanCodelenValues } from './huffman';
 import { BitReadStream } from './utils/BitReadStream';
 import { Uint8WriteStream } from './utils/Uint8WriteStream';
 const FIXED_HUFFMAN_TABLE = generateHuffmanTable(makeFixedHuffmanCodelenValues());
 export function inflate(input, offset = 0) {
-    const buffer = new Uint8WriteStream(BLOCK_MAX_BUFFER_LEN);
+    const buffer = new Uint8WriteStream(input.length * 10);
     const stream = new BitReadStream(input, offset);
     let bFinal = 0;
     let bType = 0;
@@ -31,8 +31,8 @@ export function inflate(input, offset = 0) {
 }
 function inflateUncompressedBlock(stream, buffer) {
     // Skip to byte boundary
-    if (stream.nowBitsIndex > 0) {
-        stream.readRange(8 - stream.nowBitsIndex);
+    if (stream.nowBitsLength < 8) {
+        stream.readRange(stream.nowBitsLength);
     }
     const LEN = stream.readRange(8) | stream.readRange(8) << 8;
     const NLEN = stream.readRange(8) | stream.readRange(8) << 8;
