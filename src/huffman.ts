@@ -52,7 +52,10 @@ export function makeFixedHuffmanCodelenValues(): ICodelenValues {
   return codelenValues;
 }
 
-export function generateDeflateHuffmanTable(values: number[]): Map<number, {code: number, bitlen: number}> {
+export function generateDeflateHuffmanTable(
+  values: number[],
+  maxLength: number = 15,
+  ): Map<number, {code: number, bitlen: number}> {
   const valuesCount: {[key: number]: number} = {};
   for (const value of values) {
     if (!valuesCount[value]) {
@@ -71,7 +74,7 @@ export function generateDeflateHuffmanTable(values: number[]): Map<number, {code
       simbles: [Number(valuesCountKeys[0])],
     });
   } else {
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < maxLength; i++) {
       packages = [];
       valuesCountKeys.forEach((value) => {
         const pack = {
