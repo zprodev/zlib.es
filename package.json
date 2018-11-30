@@ -3,15 +3,16 @@
   "version": "0.5.1",
   "description": "ECMAScript compliant lightweight zlib implementation",
   "main": "dist/cjs/zlib.js",
-  "module": "dist/esm/zlib.mjs",
+  "module": "dist/tsc/zlib.js",
   "types": "dist/tsc/zlib.d.ts",
   "scripts": {
     "test": "mocha ./test/index.js",
-    "build": "npm run lint && npm run build:tsc && npm run build:rollup && npm run build:uglify && npm run test",
+    "build": "npm run lint && npm run build:tsc && npm run build:rollup && npm run build:uglify:browser && npm run build:uglify:esm && npm run test",
     "debug": "npm run build:tsc && npm run build:rollup && npm run test",
     "build:tsc": "tsc",
     "build:rollup": "rollup -c",
-    "build:uglify": "uglifyjs dist/browser/zlib.js -o dist/browser/zlib.min.js -cm --comments --source-map",
+    "build:uglify:browser": "uglifyjs dist/browser/zlib.js -o dist/browser/zlib.min.js -cm --comments --source-map",
+    "build:uglify:esm": "uglifyjs dist/esm/zlib.js -o dist/esm/zlib.min.js -cm --comments --source-map",
     "lint": "tslint --fix './src/**/*.ts'"
   },
   "repository": {
@@ -33,9 +34,9 @@
   ],
   "devDependencies": {
     "mocha": "^5.2.0",
-    "rollup": "^0.65.2",
+    "rollup": "^0.67.3",
     "tslint": "^5.11.0",
-    "typescript": "^3.0.3",
+    "typescript": "^3.2.1",
     "uglify-es": "^3.3.9"
   }
 }

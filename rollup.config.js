@@ -11,7 +11,7 @@ export default {
       format: 'cjs',
     },
     {
-      file: 'dist/esm/zlib.mjs',
+      file: 'dist/esm/zlib.js',
       format: 'es',
     }
   ]
