@@ -1,3 +1,7 @@
+/**
+ * @license Copyright (c) 2018 zprodev
+ */
+
 import {calcAdler32} from './adler32';
 import {deflate as deflateCore} from './deflate';
 import {inflate as inflateCore} from './inflate';

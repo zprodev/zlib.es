@@ -11,7 +11,7 @@
     "debug": "npm run build:tsc && npm run build:rollup && npm run test",
     "build:tsc": "tsc",
     "build:rollup": "rollup -c",
-    "build:uglify": "uglifyjs dist/browser/zlib.js -o dist/browser/zlib.min.js -cm --source-map",
+    "build:uglify": "uglifyjs dist/browser/zlib.js -o dist/browser/zlib.min.js -cm --comments --source-map",
     "lint": "tslint --fix './src/**/*.ts'"
   },
   "repository": {
