@@ -916,6 +916,9 @@ var zlibes = (function (exports) {
         }
     }
 
+    /**
+     * @license Copyright (c) 2018 zprodev
+     */
     function inflate$1(input) {
         const stream = new BitReadStream(input);
         const CM = stream.readRange(4);
