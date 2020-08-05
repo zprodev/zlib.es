@@ -33,7 +33,7 @@
     "zlib"
   ],
   "devDependencies": {
-    "mocha": "^6.1.4",
+    "mocha": "^8.1.1",
     "rollup": "^1.13.1",
     "tslint": "^5.11.0",
     "typescript": "^3.2.1",
